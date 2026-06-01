@@ -10,17 +10,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "../services/api";
 import { COLORS, RADIUS, SHADOW } from "../theme";
 
-const BASE_URL = "http://192.168.1.4:8000/api";
+const BASE_URL = "https://piglytics.pythonanywhere.com/api";
 
 const ICONS = {
-  create:   require("../assets/icons/add.png"),  
-  update:   require("../assets/icons/edit.png"),   
-  delete:   require("../assets/icons/trash.png"),      
-  login:    require("../assets/icons/login.png"),        
+  create:   require("../assets/icons/add.png"),
+  update:   require("../assets/icons/edit.png"),
+  delete:   require("../assets/icons/trash.png"),
+  login:    require("../assets/icons/login.png"),
   logout:   require("../assets/icons/logout.png"),
   audit:    require("../assets/icons/audit.png"),
-  search:   require("../assets/icons/search.png"),   
-  filter:   require("../assets/icons/filter.png"), 
+  search:   require("../assets/icons/search.png"),
+  filter:   require("../assets/icons/filter.png"),
   analytics:require("../assets/icons/analytics.png"),
   forecast: require("../assets/icons/forecast.png"),
 };
