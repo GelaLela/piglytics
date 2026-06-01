@@ -1,10 +1,16 @@
 /**
  * frontend/App.js
- * Updated: FarmerAnalyticsScreen added to AdminDashStack.
+ *
+ * Fixes applied:
+ *  - All emoji tab icons replaced with PNG via Icon component
+ *  - tintColor removed from tab icons — PNGs are already colored
+ *  - Active state uses opacity (1.0) vs inactive (0.4), no color transforms
+ *  - FarmOnboardingScreen added to DashStack
+ *  - Loading spinner uses PNG pig icon instead of emoji
  */
 import React, { useEffect } from "react";
 import {
-  ActivityIndicator, View, Text, BackHandler, Alert,
+  ActivityIndicator, View, Text, BackHandler, Alert, Image,
 } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -27,6 +33,7 @@ import AnalyticsScreen      from "./src/screens/AnalyticsScreen";
 import NotificationsScreen  from "./src/screens/NotificationsScreen";
 import ForecastScreen       from "./src/screens/ForecastScreen";
 import HealthLogScreen      from "./src/screens/HealthLogScreen";
+import FarmOnboardingScreen from "./src/screens/FarmOnboardingScreen";
 
 // ── Admin screens ─────────────────────────────────────────────────────────────
 import AdminDashboardScreen  from "./src/screens/AdminDashboardScreen";
@@ -43,7 +50,34 @@ const HEADER = {
   headerShadowVisible: false,
 };
 
-function TI({ e }) { return <Text style={{ fontSize: 20 }}>{e}</Text>; }
+// ── Tab icon component ────────────────────────────────────────────────────────
+// PNG icons are already colored — use opacity only for active/inactive states.
+// Never apply tintColor to colored PNG assets.
+function TabIcon({ source, focused }) {
+  return (
+    <Image
+      source={source}
+      style={{
+        width: 22,
+        height: 22,
+        resizeMode: "contain",
+        opacity: focused ? 1.0 : 0.4,
+      }}
+    />
+  );
+}
+
+// Pre-require all tab icons once at module level (avoids re-require on every render)
+const TAB_ICONS = {
+  home:      require("./src/assets/icons/home.png"),
+  pig:       require("./src/assets/icons/pig.png"),
+  breeding:  require("./src/assets/icons/breeding.png"),
+  inventory: require("./src/assets/icons/inventory.png"),
+  analytics: require("./src/assets/icons/analytics.png"),
+  forecast:  require("./src/assets/icons/forecast.png"),
+  admin:     require("./src/assets/icons/admin.png"),
+  audit:     require("./src/assets/icons/audit.png"),
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FARMER STACKS
@@ -52,9 +86,11 @@ function TI({ e }) { return <Text style={{ fontSize: 20 }}>{e}</Text>; }
 function DashStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="DashboardMain"  component={DashboardScreen} />
-      <Stack.Screen name="Notifications"  component={NotificationsScreen}
+      <Stack.Screen name="DashboardMain"   component={DashboardScreen} />
+      <Stack.Screen name="Notifications"   component={NotificationsScreen}
         options={{ ...HEADER, title: "Alerts", headerShown: true }} />
+      <Stack.Screen name="FarmOnboarding"  component={FarmOnboardingScreen}
+        options={{ ...HEADER, title: "Farm Setup", headerShown: true }} />
     </Stack.Navigator>
   );
 }
@@ -66,7 +102,7 @@ function PigStack() {
       <Stack.Screen name="PigDetail" component={PigDetailScreen}
         options={({ route }) => ({ title: route.params?.pig?.name || "Pig Detail" })} />
       <Stack.Screen name="AddPig"    component={AddPigScreen}    options={{ title: "Add New Pig" }} />
-      <Stack.Screen name="HealthLog" component={HealthLogScreen} options={{ title: "Health Log"  }} />
+      <Stack.Screen name="HealthLog" component={HealthLogScreen} options={{ title: "Health Log" }} />
     </Stack.Navigator>
   );
 }
@@ -123,53 +159,103 @@ function FarmerNavigator() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        // tabBarActiveTintColor / tabBarInactiveTintColor only affect the label text.
+        // Icon color is handled entirely by opacity inside TabIcon — NOT by tint.
         tabBarActiveTintColor:   COLORS.primary,
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarStyle: {
           backgroundColor: COLORS.white,
-          borderTopWidth: 1, borderTopColor: COLORS.border,
-          paddingBottom: 6, paddingTop: 4, height: 60,
+          borderTopWidth: 1,
+          borderTopColor: COLORS.border,
+          paddingBottom: 6,
+          paddingTop: 4,
+          height: 60,
         },
         tabBarLabelStyle: { fontSize: 9, fontWeight: "600", marginTop: 1 },
       }}
     >
-      <Tab.Screen name="Home"      component={DashStack}      options={{ tabBarIcon: () => <TI e="🏠"/>, tabBarLabel: "Home"      }} />
-      <Tab.Screen name="Pigs"      component={PigStack}       options={{ tabBarIcon: () => <TI e="🐷"/>, tabBarLabel: "Pigs"      }} />
-      <Tab.Screen name="Breeding"  component={BreedingStack}  options={{ tabBarIcon: () => <TI e="🌸"/>, tabBarLabel: "Breeding"  }} />
-      <Tab.Screen name="Inventory" component={InventoryStack} options={{ tabBarIcon: () => <TI e="📦"/>, tabBarLabel: "Inventory" }} />
-      <Tab.Screen name="Analytics" component={AnalyticsStack} options={{ tabBarIcon: () => <TI e="📊"/>, tabBarLabel: "Analytics" }} />
-      <Tab.Screen name="Forecast"  component={ForecastStack}  options={{ tabBarIcon: () => <TI e="🔮"/>, tabBarLabel: "Forecast"  }} />
+      <Tab.Screen
+        name="Home"
+        component={DashStack}
+        options={{
+          tabBarLabel: "Home",
+          tabBarIcon: ({ focused }) => <TabIcon source={TAB_ICONS.home} focused={focused} />,
+        }}
+      />
+      <Tab.Screen
+        name="Pigs"
+        component={PigStack}
+        options={{
+          tabBarLabel: "Pigs",
+          tabBarIcon: ({ focused }) => <TabIcon source={TAB_ICONS.pig} focused={focused} />,
+        }}
+      />
+      <Tab.Screen
+        name="Breeding"
+        component={BreedingStack}
+        options={{
+          tabBarLabel: "Breeding",
+          tabBarIcon: ({ focused }) => <TabIcon source={TAB_ICONS.breeding} focused={focused} />,
+        }}
+      />
+      <Tab.Screen
+        name="Inventory"
+        component={InventoryStack}
+        options={{
+          tabBarLabel: "Inventory",
+          tabBarIcon: ({ focused }) => <TabIcon source={TAB_ICONS.inventory} focused={focused} />,
+        }}
+      />
+      <Tab.Screen
+        name="Analytics"
+        component={AnalyticsStack}
+        options={{
+          tabBarLabel: "Analytics",
+          tabBarIcon: ({ focused }) => <TabIcon source={TAB_ICONS.analytics} focused={focused} />,
+        }}
+      />
+      <Tab.Screen
+        name="Forecast"
+        component={ForecastStack}
+        options={{
+          tabBarLabel: "Forecast",
+          tabBarIcon: ({ focused }) => <TabIcon source={TAB_ICONS.forecast} focused={focused} />,
+        }}
+      />
     </Tab.Navigator>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ADMIN STACKS
-// ─────────────────────────────────────────────────────────────────────────────
-
 function AdminDashStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="AdminDashboardMain" component={AdminDashboardScreen} />
-      {/* AuditLog and FarmerAnalytics are reachable by navigation.navigate() from AdminDashboard */}
-      <Stack.Screen name="AuditLog" component={AuditLogScreen}
-        options={{ ...HEADER, title: "Audit Logs", headerShown: true }} />
-      <Stack.Screen name="FarmerAnalytics" component={FarmerAnalyticsScreen}
-        options={({ route }) => ({
+      <Stack.Screen
+        name="AdminDashboardMain"
+        component={AdminDashboardScreen}
+      />
+
+      <Stack.Screen
+        name="FarmerAnalytics"
+        component={FarmerAnalyticsScreen}
+        options={{
           ...HEADER,
-          title: route.params?.farmer?.full_name
-            ? `${route.params.farmer.full_name} — Analytics`
-            : "Farmer Analytics",
           headerShown: true,
-        })} />
+          title: "Farmer Analytics",
+        }}
+      />
     </Stack.Navigator>
   );
 }
 
+
 function AdminAuditStack() {
   return (
     <Stack.Navigator screenOptions={HEADER}>
-      <Stack.Screen name="AuditLogMain" component={AuditLogScreen} options={{ title: "Audit Logs" }} />
+      <Stack.Screen
+        name="AuditLogMain"
+        component={AuditLogScreen}
+        options={{ title: "Audit Logs" }}
+      />
     </Stack.Navigator>
   );
 }
@@ -198,14 +284,31 @@ function AdminNavigator() {
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarStyle: {
           backgroundColor: COLORS.white,
-          borderTopWidth: 1, borderTopColor: COLORS.border,
-          paddingBottom: 6, paddingTop: 4, height: 60,
+          borderTopWidth: 1,
+          borderTopColor: COLORS.border,
+          paddingBottom: 6,
+          paddingTop: 4,
+          height: 60,
         },
         tabBarLabelStyle: { fontSize: 9, fontWeight: "600", marginTop: 1 },
       }}
     >
-      <Tab.Screen name="AdminHome"  component={AdminDashStack}  options={{ tabBarIcon: () => <TI e="🖥️"/>, tabBarLabel: "Dashboard"  }} />
-      <Tab.Screen name="AdminAudit" component={AdminAuditStack} options={{ tabBarIcon: () => <TI e="📋"/>, tabBarLabel: "Audit Logs" }} />
+      <Tab.Screen
+        name="AdminHome"
+        component={AdminDashStack}
+        options={{
+          tabBarLabel: "Dashboard",
+          tabBarIcon: ({ focused }) => <TabIcon source={TAB_ICONS.admin} focused={focused} />,
+        }}
+      />
+      <Tab.Screen
+        name="AdminAudit"
+        component={AdminAuditStack}
+        options={{
+          tabBarLabel: "Audit Logs",
+          tabBarIcon: ({ focused }) => <TabIcon source={TAB_ICONS.audit} focused={focused} />,
+        }}
+      />
     </Tab.Navigator>
   );
 }
@@ -218,9 +321,21 @@ function RootNavigator() {
   const { token, isAdmin, checking } = useAuth();
   const [showRegister, setShowRegister] = React.useState(false);
 
+  // Bug 2 fix: when the token is cleared (logout), always reset to LoginScreen.
+  // Without this, showRegister stays true from a previous registration session
+  // and the user lands on RegisterScreen after logout instead of LoginScreen.
+  React.useEffect(() => {
+    if (!token && !checking) {
+      setShowRegister(false);
+    }
+  }, [token, checking]);
+
   if (checking) return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.screenBg }}>
-      <Text style={{ fontSize: 64, marginBottom: 16 }}>🐷</Text>
+      <Image
+        source={require("./src/assets/icons/pig.png")}
+        style={{ width: 64, height: 64, resizeMode: "contain", marginBottom: 16 }}
+      />
       <ActivityIndicator size="large" color={COLORS.primary} />
       <Text style={{ marginTop: 12, fontSize: 14, color: COLORS.textMuted, fontWeight: "500" }}>
         Loading Piglytics...

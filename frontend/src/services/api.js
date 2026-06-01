@@ -1,25 +1,3 @@
-/**
- * frontend/src/services/api.js
- *
- * Issue 1 fix — correct error propagation:
- *
- * BEFORE (broken):
- *   The outer catch re-threw everything that wasn't prefixed "Request failed:"
- *   as "Unable to connect to the server." This meant that a deliberate
- *   throw new Error("Incorrect username...") from inside the if (!res.ok) block
- *   was caught by the outer catch and replaced with the network error message.
- *
- * AFTER (fixed):
- *   Errors thrown from the if (!res.ok) block are tagged with a special prefix
- *   "API_ERROR:" so the outer catch can re-throw them unchanged.
- *   Only genuine fetch/network failures become the "Unable to connect" message.
- *
- * This means LoginScreen receives:
- *   "Incorrect username or password..."  → for 400 bad credentials
- *   "Unable to connect to the server."   → for genuine network failures
- *   "Something went wrong on the server" → for 500 errors
- */
-
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const BASE_URL = "http://192.168.1.4:8000/api";
@@ -34,11 +12,6 @@ async function getHeaders() {
   };
 }
 
-/**
- * Central HTTP request function.
- * All API errors are thrown with human-readable messages.
- * Network failures are caught separately from API-level errors.
- */
 async function request(method, endpoint, body = null) {
   let res;
   try {
@@ -47,30 +20,24 @@ async function request(method, endpoint, body = null) {
     if (body) config.body = JSON.stringify(body);
     res = await fetch(`${BASE_URL}${endpoint}`, config);
   } catch (_) {
-    // fetch() itself failed — genuine network/connection error
     throw new Error("Unable to connect to the server. Please check your internet connection and try again.");
   }
 
-  // Server responded but with an error status
   if (!res.ok) {
     let errMsg;
     try {
       const err = await res.json();
       errMsg = err.error || err.detail || err.message || null;
-    } catch (_) {
-      errMsg = null;
-    }
+    } catch (_) { errMsg = null; }
 
-    // Use the server's message if we got one, otherwise generate based on status
     if (!errMsg) {
-      if (res.status === 400) errMsg = "The information entered is not valid. Please check and try again.";
+      if      (res.status === 400) errMsg = "The information entered is not valid. Please check and try again.";
       else if (res.status === 401) errMsg = "Your session has expired. Please sign in again.";
       else if (res.status === 403) errMsg = "You do not have permission to perform this action.";
       else if (res.status === 404) errMsg = "The requested information could not be found.";
       else if (res.status >= 500)  errMsg = "Something went wrong on the server. Please try again later.";
       else                         errMsg = `Request failed (${res.status}). Please try again.`;
     }
-
     throw new Error(errMsg);
   }
 
@@ -85,22 +52,39 @@ export const api = {
   logout:   ()                   => request("POST", "/auth/logout/"),
 
   // ── Farm & Dashboard ──────────────────────────────────────────────────────
-  getDashboard: (farmId) => request("GET", `/farms/${farmId}/dashboard/`),
-  getWeather:   (farmId) => request("GET", `/farms/${farmId}/weather/`),
+  getDashboard:    (farmId) => request("GET", `/farms/${farmId}/dashboard/`),
+  getWeather:      (farmId) => request("GET", `/farms/${farmId}/weather/`),
+
+  // ── Farm Analytics (new endpoints) ───────────────────────────────────────
+  getHealthAnalytics:   (farmId) => request("GET", `/farms/${farmId}/health_analytics/`),
+  getGrowthAnalytics:   (farmId) => request("GET", `/farms/${farmId}/growth_analytics/`),
+  getBreedingAnalytics: (farmId) => request("GET", `/farms/${farmId}/breeding_analytics/`),
+  getFeedAnalytics:     (farmId) => request("GET", `/farms/${farmId}/feed_analytics/`),
+  getFarmPredictions:   (farmId) => request("GET", `/farms/${farmId}/predictions/`),
+
+  // ── Farm Onboarding (baseline) ────────────────────────────────────────────
+  saveFarmBaseline: (farmId, data) => request("POST", `/farms/${farmId}/save_baseline/`, data),
 
   // ── Pigs ──────────────────────────────────────────────────────────────────
   getPigs: (params = {}) => {
     const q = new URLSearchParams(params).toString();
     return request("GET", `/pigs/${q ? "?" + q : ""}`);
   },
-  getPig:    (id)       => request("GET",    `/pigs/${id}/`),
-  createPig: (data)     => request("POST",   "/pigs/", data),
-  updatePig: (id, data) => request("PATCH",  `/pigs/${id}/`, data),
-  deletePig: (id)       => request("DELETE", `/pigs/${id}/`),
+  getPig:          (id)       => request("GET",    `/pigs/${id}/`),
+  createPig:       (data)     => request("POST",   "/pigs/", data),
+  updatePig:       (id, data) => request("PATCH",  `/pigs/${id}/`, data),
+  deletePig:       (id)       => request("DELETE", `/pigs/${id}/`),
+  getNextPigId:    ()         => request("GET",    "/pigs/next_pig_id/"),
 
-  // ── Weight & Health ───────────────────────────────────────────────────────
-  logWeight:     (pigId, data) => request("POST", `/pigs/${pigId}/weights/`, data),
-  getWeights:    (pigId)       => request("GET",  `/pigs/${pigId}/weights/`),
+  // ── Pig Baseline (historical data for existing pigs) ──────────────────────
+  savePigBaseline: (pigId, data) => request("POST", `/pigs/${pigId}/save_baseline/`, data),
+  getPigBaseline:  (pigId)       => request("GET",  `/pigs/${pigId}/baseline/`),
+
+  // ── Weight ────────────────────────────────────────────────────────────────
+  logWeight:  (pigId, data) => request("POST", `/pigs/${pigId}/weights/`, data),
+  getWeights: (pigId)       => request("GET",  `/pigs/${pigId}/weights/`),
+
+  // ── Health ────────────────────────────────────────────────────────────────
   getHealthLogs: (pigId)       => request("GET",  `/pigs/${pigId}/health-logs/`),
   addHealthLog:  (pigId, data) => request("POST", `/pigs/${pigId}/health-logs/`, data),
 
@@ -118,6 +102,8 @@ export const api = {
   addBreeding:         (data)     => request("POST", "/breeding/", data),
   updateBreeding:      (id, data) => request("PATCH",`/breeding/${id}/`, data),
   recordFarrowing:     (id, data) => request("POST", `/breeding/${id}/record_farrowing/`, data),
+  markBreedingFailed:  (id, data) => request("POST", `/breeding/${id}/mark_failed/`, data),
+  getEligibleSows:     ()         => request("GET",  "/breeding/eligible_sows/"),
   getSowPerformance:   ()         => request("GET",  "/breeding/sow_performance/"),
   getBreedingForecast: ()         => request("GET",  "/breeding/forecast/"),
 

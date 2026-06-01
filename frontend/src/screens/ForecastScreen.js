@@ -1,22 +1,37 @@
+/**
+ * frontend/src/screens/ForecastScreen.js
+ * All emojis replaced with PNG icons. No tintColor applied.
+ */
 import React, { useState, useCallback } from "react";
 import {
   View, Text, ScrollView, StyleSheet,
-  ActivityIndicator, TouchableOpacity,
+  ActivityIndicator, TouchableOpacity, Image,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "../services/api";
 import { COLORS, RADIUS, SHADOW } from "../theme";
 
+const ICONS = {
+  pig:       require("../assets/icons/pig.png"),
+  pregnant:  require("../assets/icons/pregnant.png"),
+  farrowed:  require("../assets/icons/forrowed.png"),
+  breeding:  require("../assets/icons/breeding.png"),
+  analytics: require("../assets/icons/analytics.png"),
+  forecast:  require("../assets/icons/forecast.png"),
+  bell:      require("../assets/icons/bell.png"),
+  healthy:   require("../assets/icons/vaccine.png"),
+};
+
 const TABS = [
-  { key: "farrowing", label: "🐣 Farrowing",    short: "Farrowing" },
-  { key: "breeding",  label: "🌸 Next Breeding", short: "Breeding"  },
-  { key: "adg",       label: "📈 Growth ADG",    short: "ADG"       },
+  { key: "farrowing", label: "Farrowing",    icon: "farrowed" },
+  { key: "breeding",  label: "Next Breeding", icon: "breeding"  },
+  { key: "adg",       label: "Growth ADG",   icon: "analytics" },
 ];
 
 export default function ForecastScreen() {
-  const [data, setData]     = useState(null);
+  const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab]       = useState("farrowing");
+  const [tab,     setTab]     = useState("farrowing");
 
   useFocusEffect(useCallback(() => {
     api.getBreedingForecast()
@@ -29,47 +44,29 @@ export default function ForecastScreen() {
     <View style={s.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
   );
 
-  if (!data || !data.summary) return (
-    <View style={s.center}>
-      <Text style={{ fontSize: 48, marginBottom: 12 }}>🐷</Text>
-      <Text style={{ fontSize: 16, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 6 }}>
-        No forecast data yet
-      </Text>
-      <Text style={{ fontSize: 13, color: COLORS.textMuted, textAlign: "center", paddingHorizontal: 40 }}>
-        Add breeding records to see farrowing forecasts and ADG analysis.
-      </Text>
-    </View>
-  );
-
   return (
     <View style={s.screen}>
       {/* Summary bar */}
       <View style={s.summaryBar}>
-        <SumCard icon="🤰" label="Pregnant"   value={data.summary.pregnant_sows}           color={COLORS.blue} />
-        <SumCard icon="⚠️" label="Due in 7d"  value={data.summary.farrowing_within_7_days} color={COLORS.danger} />
-        <SumCard icon="🌸" label="Breed now"  value={data.summary.sows_ready_to_breed}      color={COLORS.primary} />
-        <SumCard icon="📈" label="Above ADG"  value={data.summary.pigs_above_adg_benchmark} color={COLORS.healthy} />
+        <SumCard icon={ICONS.pregnant}  label="Pregnant"   value={data.summary.pregnant_sows}            color={COLORS.blue} />
+        <SumCard icon={ICONS.bell}      label="Due in 7d"   value={data.summary.farrowing_within_7_days}  color={COLORS.danger} />
+        <SumCard icon={ICONS.breeding}  label="Breed now"   value={data.summary.sows_ready_to_breed}       color={COLORS.primary} />
+        <SumCard icon={ICONS.analytics} label="Above ADG"  value={data.summary.pigs_above_adg_benchmark}  color={COLORS.healthy} />
       </View>
 
       {/* Tab pills */}
-      <View style={s.tabWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.tabContent}
-        >
-          {TABS.map(t => (
-            <TouchableOpacity
-              key={t.key}
-              style={[s.tabPill, tab === t.key && s.tabPillActive]}
-              onPress={() => setTab(t.key)}
-            >
-              <Text style={[s.tabPillText, tab === t.key && s.tabPillTextActive]}>
-                {t.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+      <View style={s.tabRow}>
+        {TABS.map(t => (
+          <TouchableOpacity key={t.key}
+            style={[s.tabPill, tab === t.key && s.tabPillActive]}
+            onPress={() => setTab(t.key)}>
+            <Image
+              source={ICONS[t.icon]}
+              style={[s.tabPillIcon, tab === t.key ? { opacity: 1 } : { opacity: 0.45 }]}
+            />
+            <Text style={[s.tabPillText, tab === t.key && s.tabPillTextActive]}>{t.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
@@ -78,18 +75,20 @@ export default function ForecastScreen() {
         {tab === "farrowing" && (
           <>
             <InfoBox text="Based on 114-day gestation rule. Natural variation ±7 days (day 107–121). Overdue only after day 121." />
-            {data.farrowing_forecasts.length === 0 && <EmptyState icon="🤰" text="No pregnant sows at the moment" />}
+            {data.farrowing_forecasts.length === 0 && (
+              <EmptyState icon={ICONS.pregnant} text="No pregnant sows at the moment" />
+            )}
             {data.farrowing_forecasts.map((f, i) => {
-              const barColor = f.is_overdue ? COLORS.danger : f.alert ? COLORS.warning : COLORS.primary;
-              const statusBg = f.is_overdue ? COLORS.dangerBg : f.alert ? COLORS.warningBg : COLORS.healthyBg;
+              const barColor   = f.is_overdue ? COLORS.danger : f.alert ? COLORS.warning : COLORS.primary;
+              const statusBg   = f.is_overdue ? COLORS.dangerBg : f.alert ? COLORS.warningBg : COLORS.healthyBg;
               const statusText = f.is_overdue ? "Overdue" : f.alert ? "Due soon" : f.pregnancy_status === "bred" ? "Newly bred" : "On track";
-              const statusColor = f.is_overdue ? COLORS.danger : f.alert ? COLORS.warning : f.pregnancy_status === "bred" ? COLORS.blue : COLORS.healthy;
+              const statusColor= f.is_overdue ? COLORS.danger : f.alert ? COLORS.warning : f.pregnancy_status === "bred" ? COLORS.blue : COLORS.healthy;
 
               return (
                 <View key={i} style={[s.forecastCard, (f.alert || f.is_overdue) && s.forecastCardAlert]}>
                   <View style={s.forecastHeader}>
                     <View style={s.sowAvatarWrap}>
-                      <Text style={{ fontSize: 24 }}>🐷</Text>
+                      <Image source={ICONS.pig} style={{ width: 26, height: 26, resizeMode: "contain" }} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.sowName}>{f.sow_name}</Text>
@@ -111,14 +110,14 @@ export default function ForecastScreen() {
                   <Text style={s.progressLabel}>of 114 days gestation</Text>
 
                   <View style={s.pillGrid}>
-                    <InfoPill label="Bred on"    value={f.breeding_date} />
-                    <InfoPill label="Expected"   value={f.expected_farrowing} />
-                    <InfoPill label="Earliest"   value={f.earliest_farrowing} />
-                    <InfoPill label="Latest"     value={f.latest_farrowing} />
+                    <InfoPill label="Bred on"       value={f.breeding_date} />
+                    <InfoPill label="Expected"      value={f.expected_farrowing} />
+                    <InfoPill label="Earliest"      value={f.earliest_farrowing} />
+                    <InfoPill label="Latest"        value={f.latest_farrowing} />
                     <InfoPill label="Days pregnant" value={`${f.days_pregnant} days`} />
-                    <InfoPill label="Days remaining" value={
-                      f.is_overdue ? `${Math.abs(f.days_remaining)} overdue` : `${f.days_remaining} days`
-                    } valueColor={f.is_overdue ? COLORS.danger : f.alert ? COLORS.warning : COLORS.textPrimary} />
+                    <InfoPill label="Days remaining"
+                      value={f.is_overdue ? `${Math.abs(f.days_remaining)} overdue` : `${f.days_remaining} days`}
+                      valueColor={f.is_overdue ? COLORS.danger : f.alert ? COLORS.warning : COLORS.textPrimary} />
                   </View>
                 </View>
               );
@@ -129,13 +128,18 @@ export default function ForecastScreen() {
         {/* NEXT BREEDING TAB */}
         {tab === "breeding" && (
           <>
-            <InfoBox text="Based on 114-day gestation rule (swine reproductive biology standard). Natural variation of ±7 days is normal — earliest possible farrowing is day 107, latest is day 121. Overdue is only flagged after day 121." />
-            {data.next_breeding_windows.length === 0 && <EmptyState icon="🌸" text="No recently farrowed sows yet" />}
+            <InfoBox text="Based on 21-day estrous cycle. Sows return to estrus ~5 days after weaning at 21 days postpartum." />
+            {data.next_breeding_windows.length === 0 && (
+              <EmptyState icon={ICONS.breeding} text="No recently farrowed sows yet" />
+            )}
             {data.next_breeding_windows.map((b, i) => (
               <View key={i} style={[s.forecastCard, b.ready_to_breed && s.forecastCardReady]}>
                 <View style={s.forecastHeader}>
                   <View style={[s.sowAvatarWrap, b.ready_to_breed && { backgroundColor: COLORS.primaryLight }]}>
-                    <Text style={{ fontSize: 24 }}>{b.ready_to_breed ? "💕" : "🐷"}</Text>
+                    <Image
+                      source={b.ready_to_breed ? ICONS.farrowed : ICONS.pig}
+                      style={{ width: 26, height: 26, resizeMode: "contain" }}
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.sowName}>{b.sow_name}</Text>
@@ -143,7 +147,7 @@ export default function ForecastScreen() {
                   </View>
                   <View style={[s.statusChip, { backgroundColor: b.ready_to_breed ? COLORS.primaryLight : COLORS.blueBg }]}>
                     <Text style={[s.statusChipText, { color: b.ready_to_breed ? COLORS.primary : COLORS.blue }]}>
-                      {b.ready_to_breed ? "Ready ✓" : `${b.days_until_estrus}d`}
+                      {b.ready_to_breed ? "Ready" : `${b.days_until_estrus}d`}
                     </Text>
                   </View>
                 </View>
@@ -162,17 +166,19 @@ export default function ForecastScreen() {
         {/* ADG TAB */}
         {tab === "adg" && (
           <>
-            <InfoBox text="Average Daily Gain vs industry benchmarks: Piglet 0.25 kg/day • Weaner 0.40 • Grower 0.65 • Finisher 0.85 • Breeder 0.20" />
-            {data.adg_performance.length === 0 && <EmptyState icon="📈" text="Need at least 2 weight records per pig to calculate ADG" />}
+            <InfoBox text="Average Daily Gain vs benchmarks: Piglet 0.25 kg/day  Weaner 0.40  Grower 0.65  Finisher 0.85  Breeder 0.20" />
+            {data.adg_performance.length === 0 && (
+              <EmptyState icon={ICONS.analytics} text="Need at least 2 weight records per pig to calculate ADG" />
+            )}
             {data.adg_performance.map((a, i) => {
-              const pct = Math.min(100, a.performance_vs_benchmark_pct);
+              const pct   = Math.min(100, a.performance_vs_benchmark_pct);
               const color = a.status === "Above benchmark" ? COLORS.healthy : a.status === "Below benchmark" ? COLORS.danger : COLORS.warning;
               const bg    = a.status === "Above benchmark" ? COLORS.healthyBg : a.status === "Below benchmark" ? COLORS.dangerBg : COLORS.warningBg;
               return (
                 <View key={i} style={s.adgCard}>
                   <View style={s.forecastHeader}>
                     <View style={s.sowAvatarWrap}>
-                      <Text style={{ fontSize: 22 }}>🐷</Text>
+                      <Image source={ICONS.pig} style={{ width: 24, height: 24, resizeMode: "contain" }} />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.sowName}>{a.pig_name}</Text>
@@ -180,18 +186,16 @@ export default function ForecastScreen() {
                     </View>
                     <View style={[s.statusChip, { backgroundColor: bg }]}>
                       <Text style={[s.statusChipText, { color }]}>
-                        {a.status === "Above benchmark" ? "Above ↑" : a.status === "Below benchmark" ? "Below ↓" : "Near ≈"}
+                        {a.status === "Above benchmark" ? "Above" : a.status === "Below benchmark" ? "Below" : "Near"}
                       </Text>
                     </View>
                   </View>
-
                   <View style={s.progressWrap}>
                     <View style={s.progressBg}>
                       <View style={[s.progressFill, { width: pct + "%", backgroundColor: color }]} />
                     </View>
                     <Text style={[s.progressPct, { color }]}>{pct.toFixed(0)}%</Text>
                   </View>
-
                   <View style={s.pillGrid}>
                     <InfoPill label="Current weight"  value={`${a.current_weight} kg`} />
                     <InfoPill label="ADG"             value={`${a.adg_kg_per_day} kg/day`} />
@@ -211,7 +215,7 @@ export default function ForecastScreen() {
 function SumCard({ icon, label, value, color }) {
   return (
     <View style={s.sumCard}>
-      <Text style={{ fontSize: 16 }}>{icon}</Text>
+      <Image source={icon} style={{ width: 20, height: 20, resizeMode: "contain", marginBottom: 2 }} />
       <Text style={[s.sumValue, { color }]}>{value}</Text>
       <Text style={s.sumLabel}>{label}</Text>
     </View>
@@ -221,7 +225,8 @@ function SumCard({ icon, label, value, color }) {
 function InfoBox({ text }) {
   return (
     <View style={s.infoBox}>
-      <Text style={s.infoBoxText}>ℹ️  {text}</Text>
+      <Image source={require("../assets/icons/analytics.png")} style={{ width: 14, height: 14, resizeMode: "contain", marginRight: 6, marginTop: 1 }} />
+      <Text style={s.infoBoxText}>{text}</Text>
     </View>
   );
 }
@@ -238,7 +243,7 @@ function InfoPill({ label, value, valueColor }) {
 function EmptyState({ icon, text }) {
   return (
     <View style={s.emptyState}>
-      <Text style={{ fontSize: 40 }}>{icon}</Text>
+      <Image source={icon} style={{ width: 44, height: 44, resizeMode: "contain", opacity: 0.4, marginBottom: 8 }} />
       <Text style={s.emptyText}>{text}</Text>
     </View>
   );
@@ -253,29 +258,12 @@ const s = StyleSheet.create({
   sumValue:   { fontSize: 20, fontWeight: "800" },
   sumLabel:   { fontSize: 9, color: COLORS.textMuted, textAlign: "center" },
 
-  tabWrapper: {
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingVertical: 10,
-  },
-  tabContent: {
-    paddingHorizontal: 12,
-    gap: 8,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  tabPill: {
-    height: 36,
-    paddingHorizontal: 18,
-    borderRadius: 18,
-    backgroundColor: COLORS.screenBg,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  tabPillActive:    { backgroundColor: COLORS.primary },
-  tabPillText:      { fontSize: 14, color: COLORS.textSecondary, fontWeight: "600" },
-  tabPillTextActive:{ color: COLORS.white, fontWeight: "700" },
+  tabRow:         { flexDirection: "row", padding: 10, gap: 6, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  tabPill:        { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 7, borderRadius: RADIUS.full, backgroundColor: COLORS.screenBg, gap: 4 },
+  tabPillActive:  { backgroundColor: COLORS.primary },
+  tabPillIcon:    { width: 14, height: 14, resizeMode: "contain" },
+  tabPillText:    { fontSize: 10, color: COLORS.textSecondary, fontWeight: "600" },
+  tabPillTextActive: { color: COLORS.white, fontWeight: "700" },
 
   forecastCard:      { backgroundColor: COLORS.white, borderRadius: RADIUS.xl, padding: 16, ...SHADOW.sm },
   forecastCardAlert: { borderLeftWidth: 3, borderLeftColor: COLORS.warning },
@@ -296,13 +284,13 @@ const s = StyleSheet.create({
   progressPct:  { fontSize: 12, fontWeight: "700", minWidth: 36, textAlign: "right" },
   progressLabel:{ fontSize: 11, color: COLORS.textMuted, marginBottom: 12 },
 
-  pillGrid:   { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  infoPill:   { backgroundColor: COLORS.screenBg, borderRadius: RADIUS.md, padding: 10, minWidth: "45%", flex: 1 },
-  infoPillLabel:{ fontSize: 10, color: COLORS.textMuted, marginBottom: 2 },
-  infoPillValue:{ fontSize: 13, fontWeight: "700", color: COLORS.textPrimary },
+  pillGrid:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  infoPill:      { backgroundColor: COLORS.screenBg, borderRadius: RADIUS.md, padding: 10, minWidth: "45%", flex: 1 },
+  infoPillLabel: { fontSize: 10, color: COLORS.textMuted, marginBottom: 2 },
+  infoPillValue: { fontSize: 13, fontWeight: "700", color: COLORS.textPrimary },
 
-  infoBox:     { backgroundColor: COLORS.blueBg, borderRadius: RADIUS.lg, padding: 12, borderLeftWidth: 3, borderLeftColor: COLORS.blue },
-  infoBoxText: { fontSize: 12, color: COLORS.blue, lineHeight: 18 },
+  infoBox:    { backgroundColor: COLORS.blueBg, borderRadius: RADIUS.lg, padding: 12, borderLeftWidth: 3, borderLeftColor: COLORS.blue, flexDirection: "row", alignItems: "flex-start" },
+  infoBoxText:{ flex: 1, fontSize: 12, color: COLORS.blue, lineHeight: 18 },
 
   emptyState: { alignItems: "center", paddingVertical: 48, gap: 10 },
   emptyText:  { fontSize: 14, color: COLORS.textMuted, textAlign: "center" },

@@ -1,35 +1,46 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, FlatList, StyleSheet,
-  TouchableOpacity, ActivityIndicator, ScrollView,
+  TouchableOpacity, ActivityIndicator, Image,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "../services/api";
 import { COLORS, RADIUS, SHADOW } from "../theme";
 
+const ICONS = {
+  bell:      require("../assets/icons/bell.png"),
+  health:    require("../assets/icons/health_alert.png"),     
+  breeding:  require("../assets/icons/breeding.png"),
+  inventory: require("../assets/icons/inventory.png"),
+  weather:   require("../assets/icons/weather.png"), 
+  vaccine:   require("../assets/icons/vaccine.png"),
+  forecast:  require("../assets/icons/forecast.png"),
+};
+
 const FILTERS = ["All", "Health", "Breeding", "Inventory", "Weather"];
 
 const TYPE_CONFIG = {
-  health:      { icon: "❤️",  bg: COLORS.dangerBg,  border: COLORS.danger,  text: COLORS.danger,  label: "Health"    },
-  breeding:    { icon: "🌸",  bg: "#F3E8FF",         border: "#9333EA",      text: "#9333EA",       label: "Breeding"  },
-  inventory:   { icon: "📦",  bg: COLORS.warningBg,  border: COLORS.warning, text: COLORS.warning,  label: "Inventory" },
-  weather:     { icon: "🌤️", bg: COLORS.blueBg,     border: COLORS.blue,    text: COLORS.blue,     label: "Weather"   },
-  vaccination: { icon: "💉",  bg: "#FDF2F8",         border: COLORS.pink,    text: COLORS.pink,     label: "Vaccine"   },
+  health:      { iconKey: "health",    bg: COLORS.dangerBg,  border: COLORS.danger,  text: COLORS.danger,  label: "Health"    },
+  breeding:    { iconKey: "breeding",  bg: "#F3E8FF",         border: "#9333EA",      text: "#9333EA",       label: "Breeding"  },
+  inventory:   { iconKey: "inventory", bg: COLORS.warningBg,  border: COLORS.warning, text: COLORS.warning,  label: "Inventory" },
+  weather:     { iconKey: "weather",   bg: COLORS.blueBg,     border: COLORS.blue,    text: COLORS.blue,     label: "Weather"   },
+  vaccination: { iconKey: "vaccine",   bg: "#FDF2F8",         border: COLORS.pink,    text: COLORS.pink,     label: "Vaccine"   },
+  forecast:    { iconKey: "forecast",  bg: COLORS.primaryLight,border: COLORS.primary,text: COLORS.primary,  label: "Forecast"  },
 };
 
 function timeAgo(iso) {
   if (!iso) return "";
   const diff = Math.floor((Date.now() - new Date(iso)) / 60000);
-  if (diff < 1)  return "Just now";
-  if (diff < 60) return `${diff}m ago`;
+  if (diff < 1)    return "Just now";
+  if (diff < 60)   return `${diff}m ago`;
   if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
   return `${Math.floor(diff / 1440)}d ago`;
 }
 
 export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [activeFilter, setFilter] = useState("All");
+  const [loading,    setLoading]    = useState(true);
+  const [activeFilter, setFilter]   = useState("All");
 
   async function load() {
     try {
@@ -67,7 +78,7 @@ export default function NotificationsScreen() {
       <View style={s.header}>
         <View>
           <Text style={s.headerTitle}>Alerts</Text>
-          {unread > 0 && <Text style={s.headerSub}>{unread} unread notifications</Text>}
+          {unread > 0 && <Text style={s.headerSub}>{unread} unread</Text>}
         </View>
         {unread > 0 && (
           <TouchableOpacity style={s.markAllBtn} onPress={markAllRead}>
@@ -77,22 +88,16 @@ export default function NotificationsScreen() {
       </View>
 
       {/* Filter pills */}
-      <View style={s.filterWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.filterContent}
-        >
-          {FILTERS.map(f => (
-            <TouchableOpacity
-              key={f}
-              style={[s.pill, activeFilter === f && s.pillActive]}
-              onPress={() => setFilter(f)}
-            >
-              <Text style={[s.pillText, activeFilter === f && s.pillTextActive]}>{f}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+      <View style={s.filtersScroll}>
+        {FILTERS.map(f => (
+          <TouchableOpacity
+            key={f}
+            style={[s.pill, activeFilter === f && s.pillActive]}
+            onPress={() => setFilter(f)}
+          >
+            <Text style={[s.pillText, activeFilter === f && s.pillTextActive]}>{f}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <FlatList
@@ -102,13 +107,15 @@ export default function NotificationsScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={s.emptyState}>
-            <Text style={{ fontSize: 48 }}>🔔</Text>
+            {/* bell.png at large size — no tintColor */}
+            <Image source={ICONS.bell} style={{ width: 52, height: 52, resizeMode: "contain", marginBottom: 12 }} />
             <Text style={s.emptyTitle}>No notifications</Text>
             <Text style={s.emptySub}>You're all caught up!</Text>
           </View>
         }
         renderItem={({ item }) => {
           const cfg = TYPE_CONFIG[item.notification_type] || TYPE_CONFIG.health;
+          const iconSource = ICONS[cfg.iconKey] || ICONS.bell;
           return (
             <TouchableOpacity
               style={[s.card, !item.is_read && { borderLeftWidth: 3, borderLeftColor: cfg.border }]}
@@ -116,7 +123,7 @@ export default function NotificationsScreen() {
               activeOpacity={0.85}
             >
               <View style={[s.iconWrap, { backgroundColor: cfg.bg }]}>
-                <Text style={{ fontSize: 20 }}>{cfg.icon}</Text>
+                <Image source={iconSource} style={{ width: 22, height: 22, resizeMode: "contain" }} />
               </View>
               <View style={{ flex: 1 }}>
                 <View style={s.cardTop}>
@@ -153,30 +160,10 @@ const s = StyleSheet.create({
   markAllBtn:  { backgroundColor: COLORS.primaryLight, paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full },
   markAllText: { fontSize: 12, color: COLORS.primary, fontWeight: "700" },
 
-  filterWrapper: {
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingVertical: 10,
-  },
-  filterContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  pill: {
-    height: 36,
-    paddingHorizontal: 18,
-    borderRadius: 18,
-    backgroundColor: COLORS.screenBg,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  filtersScroll: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  pill:          { paddingHorizontal: 14, paddingVertical: 6, borderRadius: RADIUS.full, backgroundColor: COLORS.screenBg, borderWidth: 1, borderColor: COLORS.border },
   pillActive:    { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  pillText:      { fontSize: 14, color: COLORS.textSecondary, fontWeight: "600" },
+  pillText:      { fontSize: 12, color: COLORS.textSecondary, fontWeight: "500" },
   pillTextActive:{ color: COLORS.white, fontWeight: "700" },
 
   card:     { flexDirection: "row", gap: 12, backgroundColor: COLORS.white, borderRadius: RADIUS.xl, padding: 14, ...SHADOW.sm },

@@ -10,11 +10,29 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Alert, Image,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { api } from "../services/api";
 import { COLORS, RADIUS, SHADOW } from "../theme";
+
+
+const ICONS = {
+  pig:       require("../assets/icons/pig.png"),
+  health:    require("../assets/icons/pill.png"),
+  breeding:  require("../assets/icons/breeding.png"),
+  analytics: require("../assets/icons/analytics.png"),
+  feeds:     require("../assets/icons/feeds.png"),
+  pregnant:  require("../assets/icons/pregnant.png"),
+  farrowed:  require("../assets/icons/forrowed.png"),
+  vaccine:   require("../assets/icons/vaccine.png"),
+  bell:      require("../assets/icons/bell.png"),
+  inventory: require("../assets/icons/inventory.png"),
+  user:      require("../assets/icons/user.png"),
+  forecast:  require("../assets/icons/forecast.png"),
+  home:      require("../assets/icons/home.png"),
+  audit:     require("../assets/icons/audit.png"),
+};
 
 export default function FarmerAnalyticsScreen({ route }) {
   const { farmer } = route.params;
@@ -49,7 +67,7 @@ export default function FarmerAnalyticsScreen({ route }) {
 
   if (!data) return (
     <View style={s.center}>
-      <Text style={{ fontSize: 40 }}>📊</Text>
+      <Image source={ICONS.analytics} style={{ width: 40, height: 40, resizeMode: "contain", opacity: 0.4 }} />
       <Text style={s.emptyTitle}>No data available</Text>
     </View>
   );
@@ -59,10 +77,10 @@ export default function FarmerAnalyticsScreen({ route }) {
           breeding_summary, feed_summary, feed_weekly_usage, predictions } = data;
 
   const TABS = [
-    { key: "pigs",     label: "🐷 Pigs"     },
-    { key: "health",   label: "🩺 Health"   },
-    { key: "breeding", label: "🌸 Breeding" },
-    { key: "feed",     label: "📦 Feed"     },
+    { key: "pigs",     label: "Pigs"     },
+    { key: "health",   label: "Health"   },
+    { key: "breeding", label: "Breeding" },
+    { key: "feed",     label: "Feed"     },
   ];
 
   return (
@@ -71,7 +89,7 @@ export default function FarmerAnalyticsScreen({ route }) {
       {/* Farmer profile card */}
       <View style={s.profileCard}>
         <View style={s.profileAvatar}>
-          <Text style={{ fontSize: 36 }}>👨‍🌾</Text>
+          <Image source={ICONS.user} style={{ width: 38, height: 38, resizeMode: "contain" }} />
         </View>
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -85,32 +103,32 @@ export default function FarmerAnalyticsScreen({ route }) {
             </View>
           </View>
           <Text style={s.profileMeta}>@{profile.username}</Text>
-          <Text style={s.profileMeta}>🏠 {profile.farm_name}</Text>
-          <Text style={s.profileMeta}>📅 Joined {profile.date_joined}</Text>
-          <Text style={s.profileMeta}>🕒 Last login: {profile.last_login}</Text>
+          <Text style={s.profileMeta}>{profile.farm_name}</Text>
+          <Text style={s.profileMeta}>Joined {profile.date_joined}</Text>
+          <Text style={s.profileMeta}>Last login: {profile.last_login}</Text>
         </View>
       </View>
 
       {/* Headline KPIs */}
       <View style={s.kpiRow}>
-        <KPI icon="🐷" value={pig_summary.total}    label="Total Pigs"  color={COLORS.primary} />
-        <KPI icon="❤️" value={pig_summary.healthy}  label="Healthy"     color={COLORS.healthy} />
-        <KPI icon="🤒" value={pig_summary.sick}      label="Sick"        color={COLORS.warning} />
-        <KPI icon="🌸" value={pig_summary.pregnant}  label="Pregnant"    color={COLORS.pink}    />
+        <KPI iconSource={ICONS.pig} value={pig_summary.total}    label="Total Pigs"  color={COLORS.primary} />
+        <KPI iconSource={ICONS.health} value={pig_summary.healthy}  label="Healthy"     color={COLORS.healthy} />
+        <KPI iconSource={ICONS.bell} value={pig_summary.sick}      label="Sick"        color={COLORS.warning} />
+        <KPI iconSource={ICONS.breeding} value={pig_summary.pregnant}  label="Pregnant"    color={COLORS.pink}    />
       </View>
 
       {/* Predictions */}
       <View style={s.section}>
-        <SectionHeader title="🔮 Predictions & Forecast" />
+        <SectionHeader title="Predictions & Forecast" />
         <View style={s.predictionGrid}>
-          <PredCard icon="🐷" label="Pig population next month"
+          <PredCard iconSource={ICONS.pig} label="Pig population next month"
             value={predictions.predicted_pig_population ?? "—"} color={COLORS.primary} bg={COLORS.primaryLight} />
-          <PredCard icon="🐣" label="New piglets expected"
+          <PredCard iconSource={ICONS.farrowed} label="New piglets expected"
             value={predictions.predicted_new_piglets ?? 0} color={COLORS.purple} bg={COLORS.purpleBg} />
-          <PredCard icon="📦" label="Feed needed next month"
+          <PredCard iconSource={ICONS.inventory} label="Feed needed next month"
             value={predictions.predicted_monthly_feed_kg ? `${predictions.predicted_monthly_feed_kg} kg` : "—"}
             color={COLORS.amber} bg={COLORS.amberBg} />
-          <PredCard icon="⏳" label="Feed days remaining"
+          <PredCard iconSource={ICONS.forecast} label="Feed days remaining"
             value={predictions.feed_days_remaining ? `${predictions.feed_days_remaining} days` : "Unlimited"}
             color={predictions.feed_days_remaining && predictions.feed_days_remaining < 7 ? COLORS.danger : COLORS.healthy}
             bg={predictions.feed_days_remaining && predictions.feed_days_remaining < 7 ? COLORS.dangerBg : COLORS.healthyBg} />
@@ -190,7 +208,7 @@ export default function FarmerAnalyticsScreen({ route }) {
             </View>
           )}
           {weight_trend.length === 0 && (
-            <EmptyCard icon="⚖️" text="No weight records yet" />
+            <EmptyCard iconKey="analytics" text="No weight records yet" />
           )}
         </View>
       )}
@@ -201,10 +219,10 @@ export default function FarmerAnalyticsScreen({ route }) {
           <View style={s.card}>
             <Text style={s.cardTitle}>Health Log Summary</Text>
             <View style={s.healthGrid}>
-              <HealthMetric icon="✅" label="Normal"   value={health_summary.normal}   color={COLORS.healthy} />
-              <HealthMetric icon="⚠️" label="Warnings" value={health_summary.warning}  color={COLORS.warning} />
-              <HealthMetric icon="🔴" label="Critical" value={health_summary.critical} color={COLORS.danger}  />
-              <HealthMetric icon="📋" label="Total logs" value={health_summary.total_health_logs} color={COLORS.blue} />
+              <HealthMetric iconSource={ICONS.vaccine} label="Normal"   value={health_summary.normal}   color={COLORS.healthy} />
+              <HealthMetric iconSource={ICONS.bell} label="Warnings" value={health_summary.warning}  color={COLORS.warning} />
+              <HealthMetric iconSource={ICONS.bell} label="Critical" value={health_summary.critical} color={COLORS.danger}  />
+              <HealthMetric iconSource={ICONS.audit} label="Total logs" value={health_summary.total_health_logs} color={COLORS.blue} />
             </View>
           </View>
 
@@ -227,9 +245,9 @@ export default function FarmerAnalyticsScreen({ route }) {
           <View style={s.card}>
             <Text style={s.cardTitle}>Vaccination & Disease</Text>
             <View style={s.vacRow}>
-              <VacCard icon="💉" label="Vaccinations done" value={vaccination_summary.completed} color={COLORS.primary} />
-              <VacCard icon="⏰" label="Due this week"     value={vaccination_summary.due_soon}  color={COLORS.warning} />
-              <VacCard icon="🦠" label="Disease cases"     value={vaccination_summary.disease_cases} color={COLORS.danger} />
+              <VacCard iconSource={ICONS.vaccine} label="Vaccinations done" value={vaccination_summary.completed} color={COLORS.primary} />
+              <VacCard iconSource={ICONS.forecast} label="Due this week"     value={vaccination_summary.due_soon}  color={COLORS.warning} />
+              <VacCard iconSource={ICONS.health} label="Disease cases"     value={vaccination_summary.disease_cases} color={COLORS.danger} />
             </View>
           </View>
 
@@ -242,7 +260,7 @@ export default function FarmerAnalyticsScreen({ route }) {
                   const score = pig_summary.total > 0
                     ? Math.round((pig_summary.healthy / pig_summary.total) * 100) : 100;
                   const color = score >= 80 ? COLORS.healthy : score >= 60 ? COLORS.warning : COLORS.danger;
-                  const label = score >= 80 ? "Excellent 🌟" : score >= 60 ? "Good 👍" : "Needs Attention ⚠️";
+                  const label = score >= 80 ? "Excellent" : score >= 60 ? "Good" : "Needs Attention";
                   return (
                     <>
                       <Text style={[s.healthScore, { color }]}>{score}%</Text>
@@ -268,12 +286,12 @@ export default function FarmerAnalyticsScreen({ route }) {
           <View style={s.card}>
             <Text style={s.cardTitle}>Breeding Performance</Text>
             <View style={s.breedingKPIs}>
-              <BreedingKPI icon="📝" label="Total records"   value={breeding_summary.total_records} />
-              <BreedingKPI icon="🌸" label="Currently pregnant" value={breeding_summary.currently_pregnant} />
-              <BreedingKPI icon="🐣" label="Total litters"   value={breeding_summary.total_litters} />
-              <BreedingKPI icon="📊" label="Avg litter size" value={breeding_summary.avg_litter_size} />
-              <BreedingKPI icon="✅" label="Success rate"    value={`${breeding_summary.success_rate_pct}%`} />
-              <BreedingKPI icon="🐷" label="Total alive born" value={breeding_summary.total_alive_born} />
+              <BreedingKPI iconSource={ICONS.audit} label="Total records"   value={breeding_summary.total_records} />
+              <BreedingKPI iconSource={ICONS.breeding} label="Currently pregnant" value={breeding_summary.currently_pregnant} />
+              <BreedingKPI iconSource={ICONS.farrowed} label="Total litters"   value={breeding_summary.total_litters} />
+              <BreedingKPI iconSource={ICONS.analytics} label="Avg litter size" value={breeding_summary.avg_litter_size} />
+              <BreedingKPI iconSource={ICONS.vaccine} label="Success rate"    value={`${breeding_summary.success_rate_pct}%`} />
+              <BreedingKPI iconSource={ICONS.pig} label="Total alive born" value={breeding_summary.total_alive_born} />
             </View>
           </View>
 
@@ -288,7 +306,7 @@ export default function FarmerAnalyticsScreen({ route }) {
                   <>
                     <Text style={[s.healthScore, { color }]}>{rate}%</Text>
                     <Text style={s.healthScoreLabel}>
-                      {rate >= 80 ? "Excellent breeder 🌟" : rate >= 60 ? "Average 👍" : "Needs improvement ⚠️"}
+                      {rate >= 80 ? "Excellent breeder" : rate >= 60 ? "Average" : "Needs improvement"}
                     </Text>
                     <View style={s.progressBg}>
                       <View style={[s.progressFill, { width: `${Math.min(rate, 100)}%`, backgroundColor: color }]} />
@@ -326,14 +344,14 @@ export default function FarmerAnalyticsScreen({ route }) {
           <View style={s.card}>
             <Text style={s.cardTitle}>Feed Inventory Summary</Text>
             <View style={s.feedGrid}>
-              <FeedMetric icon="📦" label="Total stock"
+              <FeedMetric iconSource={ICONS.inventory} label="Total stock"
                 value={`${feed_summary.total_stock_kg} kg`} color={COLORS.primary} />
-              <FeedMetric icon="📋" label="Feed types"
+              <FeedMetric iconSource={ICONS.audit} label="Feed types"
                 value={feed_summary.feed_items} color={COLORS.blue} />
-              <FeedMetric icon="⚠️" label="Low stock items"
+              <FeedMetric iconSource={ICONS.bell} label="Low stock items"
                 value={feed_summary.low_stock_items}
                 color={feed_summary.low_stock_items > 0 ? COLORS.danger : COLORS.healthy} />
-              <FeedMetric icon="⏳" label="Days remaining"
+              <FeedMetric iconSource={ICONS.forecast} label="Days remaining"
                 value={predictions.feed_days_remaining ? `${predictions.feed_days_remaining}d` : "∞"}
                 color={predictions.feed_days_remaining && predictions.feed_days_remaining < 7
                   ? COLORS.danger : COLORS.healthy} />
@@ -352,7 +370,7 @@ export default function FarmerAnalyticsScreen({ route }) {
               />
             </View>
           ) : (
-            <EmptyCard icon="📦" text="No feed usage logs in the last 30 days" />
+            <EmptyCard iconSource={ICONS.inventory} text="No feed usage logs in the last 30 days" />
           )}
 
           {/* Feed forecast */}
@@ -373,7 +391,7 @@ export default function FarmerAnalyticsScreen({ route }) {
                       ? COLORS.healthy : COLORS.danger
                   }]}>
                     {feed_summary.total_stock_kg >= predictions.predicted_monthly_feed_kg
-                      ? "✅ Sufficient" : "⚠️ Insufficient"}
+                      ? "Sufficient" : "Insufficient"}
                   </Text>
                   <Text style={s.forecastLabel}>Stock status</Text>
                 </View>
@@ -472,60 +490,60 @@ function StatusBar({ label, value, total, color }) {
 
 // ── Small components ──────────────────────────────────────────────────────────
 
-function KPI({ icon, value, label, color }) {
+function KPI({ iconSource, value, label, color }) {
   return (
     <View style={[s.kpi, { borderTopColor: color, borderTopWidth: 3 }]}>
-      <Text style={{ fontSize: 20, marginBottom: 4 }}>{icon}</Text>
+      <Image source={iconSource} style={{ width: 20, height: 20, resizeMode: "contain", marginBottom: 4 }} />
       <Text style={[s.kpiValue, { color }]}>{value}</Text>
       <Text style={s.kpiLabel}>{label}</Text>
     </View>
   );
 }
 
-function PredCard({ icon, label, value, color, bg }) {
+function PredCard({ iconSource, label, value, color, bg }) {
   return (
     <View style={[s.predCard, { backgroundColor: bg }]}>
-      <Text style={{ fontSize: 22 }}>{icon}</Text>
+      <Image source={iconSource} style={{ width: 22, height: 22, resizeMode: "contain" }} />
       <Text style={[s.predValue, { color }]}>{value}</Text>
       <Text style={s.predLabel}>{label}</Text>
     </View>
   );
 }
 
-function HealthMetric({ icon, label, value, color }) {
+function HealthMetric({ iconSource, label, value, color }) {
   return (
     <View style={s.healthMetric}>
-      <Text style={{ fontSize: 22 }}>{icon}</Text>
+      <Image source={iconSource} style={{ width: 22, height: 22, resizeMode: "contain" }} />
       <Text style={[s.healthMetricValue, { color }]}>{value}</Text>
       <Text style={s.healthMetricLabel}>{label}</Text>
     </View>
   );
 }
 
-function VacCard({ icon, label, value, color }) {
+function VacCard({ iconSource, label, value, color }) {
   return (
     <View style={[s.vacCard, { borderLeftColor: color }]}>
-      <Text style={{ fontSize: 20 }}>{icon}</Text>
+      <Image source={iconSource} style={{ width: 20, height: 20, resizeMode: "contain" }} />
       <Text style={[s.vacValue, { color }]}>{value}</Text>
       <Text style={s.vacLabel}>{label}</Text>
     </View>
   );
 }
 
-function BreedingKPI({ icon, label, value }) {
+function BreedingKPI({ iconSource, label, value }) {
   return (
     <View style={s.breedingKPI}>
-      <Text style={{ fontSize: 18 }}>{icon}</Text>
+      <Image source={iconSource} style={{ width: 18, height: 18, resizeMode: "contain" }} />
       <Text style={s.breedingKPIValue}>{value}</Text>
       <Text style={s.breedingKPILabel}>{label}</Text>
     </View>
   );
 }
 
-function FeedMetric({ icon, label, value, color }) {
+function FeedMetric({ iconSource, label, value, color }) {
   return (
     <View style={[s.feedMetric, { borderLeftColor: color }]}>
-      <Text style={{ fontSize: 22 }}>{icon}</Text>
+      <Image source={iconSource} style={{ width: 22, height: 22, resizeMode: "contain" }} />
       <Text style={[s.feedValue, { color }]}>{value}</Text>
       <Text style={s.feedLabel}>{label}</Text>
     </View>
@@ -536,10 +554,11 @@ function SectionHeader({ title }) {
   return <Text style={s.sectionHeader}>{title}</Text>;
 }
 
-function EmptyCard({ icon, text }) {
+function EmptyCard({ iconKey, text }) {
+  const src = ICONS[iconKey] || ICONS.analytics;
   return (
     <View style={[s.card, { alignItems: "center", paddingVertical: 32 }]}>
-      <Text style={{ fontSize: 36, marginBottom: 8 }}>{icon}</Text>
+      <Image source={src} style={{ width: 36, height: 36, resizeMode: "contain", opacity: 0.4, marginBottom: 8 }} />
       <Text style={{ fontSize: 13, color: COLORS.textMuted, textAlign: "center" }}>{text}</Text>
     </View>
   );

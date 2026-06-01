@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, TextInput, Alert, Platform,
+  ActivityIndicator, TextInput, Alert, Platform, Image,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import * as FileSystem from "expo-file-system/legacy";
@@ -12,12 +12,25 @@ import { COLORS, RADIUS, SHADOW } from "../theme";
 
 const BASE_URL = "http://192.168.1.4:8000/api";
 
+const ICONS = {
+  create:   require("../assets/icons/add.png"),  
+  update:   require("../assets/icons/edit.png"),   
+  delete:   require("../assets/icons/trash.png"),      
+  login:    require("../assets/icons/login.png"),        
+  logout:   require("../assets/icons/logout.png"),
+  audit:    require("../assets/icons/audit.png"),
+  search:   require("../assets/icons/search.png"),   
+  filter:   require("../assets/icons/filter.png"), 
+  analytics:require("../assets/icons/analytics.png"),
+  forecast: require("../assets/icons/forecast.png"),
+};
+
 const ACTION_CONFIG = {
-  create: { icon: "➕", bg: COLORS.healthyBg,   text: COLORS.healthy,  label: "Created" },
-  update: { icon: "✏️", bg: COLORS.blueBg,       text: COLORS.blue,     label: "Updated" },
-  delete: { icon: "🗑", bg: COLORS.dangerBg,     text: COLORS.danger,   label: "Deleted" },
-  login:  { icon: "🔐", bg: COLORS.primaryLight, text: COLORS.primary,  label: "Login"   },
-  logout: { icon: "🚪", bg: COLORS.warningBg,    text: COLORS.warning,  label: "Logout"  },
+  create: { iconKey: "create", bg: COLORS.healthyBg,   text: COLORS.healthy,  label: "Created" },
+  update: { iconKey: "update", bg: COLORS.blueBg,       text: COLORS.blue,     label: "Updated" },
+  delete: { iconKey: "delete", bg: COLORS.dangerBg,     text: COLORS.danger,   label: "Deleted" },
+  login:  { iconKey: "login", bg: COLORS.primaryLight, text: COLORS.primary,  label: "Login"   },
+  logout: { iconKey: "logout", bg: COLORS.warningBg,    text: COLORS.warning,  label: "Logout"  },
 };
 
 const ACTION_FILTERS = [
@@ -143,28 +156,31 @@ export default function AuditLogScreen() {
       {/* Header */}
       <View style={s.header}>
         <View>
-          <Text style={s.headerTitle}>📋 Audit Logs</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Image source={ICONS.audit} style={{ width: 20, height: 20, resizeMode: "contain" }} />
+          <Text style={s.headerTitle}>Audit Logs</Text>
+        </View>
           <Text style={s.headerSub}>{logs.length} entries loaded</Text>
         </View>
         <TouchableOpacity
           style={s.filterToggle}
           onPress={() => setShowFilters(!showFilters)}
         >
-          <Text style={s.filterToggleText}>{showFilters ? "▲ Hide" : "⚙️ Filter"}</Text>
+          <Text style={s.filterToggleText}>{showFilters ? "Hide" : "Filter"}</Text>
         </TouchableOpacity>
       </View>
 
       {/* Export buttons */}
       <View style={s.exportRow}>
-        <ExportBtn icon="📊" label="Excel"
+        <ExportBtn iconKey="analytics" label="Excel"
           color={COLORS.healthy} bg={COLORS.healthyBg}
           loading={exporting === "excel"}
           onPress={() => handleExport("excel")} />
-        <ExportBtn icon="📄" label="PDF"
+        <ExportBtn iconKey="forecast" label="PDF"
           color={COLORS.danger} bg={COLORS.dangerBg}
           loading={exporting === "pdf"}
           onPress={() => handleExport("pdf")} />
-        <ExportBtn icon="📋" label="CSV"
+        <ExportBtn iconKey="audit" label="CSV"
           color={COLORS.blue} bg={COLORS.blueBg}
           loading={exporting === "csv"}
           onPress={() => handleExport("csv")} />
@@ -174,7 +190,7 @@ export default function AuditLogScreen() {
       {showFilters && (
         <View style={s.filterPanel}>
           <View style={s.searchBar}>
-            <Text style={{ fontSize: 14 }}>🔍</Text>
+            <Image source={ICONS.search} style={{ width: 14, height: 14, resizeMode: "contain", opacity: 0.5 }} />
             <TextInput
               style={s.searchInput}
               placeholder="Search descriptions, users..."
@@ -240,7 +256,7 @@ export default function AuditLogScreen() {
         >
           {logs.length === 0 && (
             <View style={s.emptyState}>
-              <Text style={{ fontSize: 40 }}>📋</Text>
+              <Image source={ICONS.audit} style={{ width: 44, height: 44, resizeMode: "contain", opacity: 0.4 }} />
               <Text style={s.emptyTitle}>No audit logs found</Text>
               <Text style={s.emptySub}>
                 {search || actionFilter !== "All" || dateFrom || dateTo
@@ -303,7 +319,7 @@ export default function AuditLogScreen() {
                   </View>
                 )}
 
-                <Text style={s.expandHint}>{isExp ? "▲ Collapse" : "▼ Tap for details"}</Text>
+                <Text style={s.expandHint}>{isExp ? "Collapse" : "Tap for details"}</Text>
               </TouchableOpacity>
             );
           })}
@@ -313,7 +329,7 @@ export default function AuditLogScreen() {
   );
 }
 
-function ExportBtn({ icon, label, color, bg, loading, onPress }) {
+function ExportBtn({ iconKey, label, color, bg, loading, onPress }) {
   return (
     <TouchableOpacity
       style={[s.exportBtn, { backgroundColor: bg, borderColor: color }]}
@@ -323,7 +339,7 @@ function ExportBtn({ icon, label, color, bg, loading, onPress }) {
     >
       {loading
         ? <ActivityIndicator size="small" color={color} />
-        : <Text style={{ fontSize: 16 }}>{icon}</Text>}
+        : <Image source={ICONS[iconKey] || ICONS.analytics} style={{ width: 16, height: 16, resizeMode: "contain" }} />}
       <Text style={[s.exportBtnText, { color }]}>{label}</Text>
     </TouchableOpacity>
   );

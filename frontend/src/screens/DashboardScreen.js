@@ -1,57 +1,64 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  RefreshControl, ActivityIndicator, Alert,
+  RefreshControl, ActivityIndicator, Alert, Image,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../services/api";
 import { COLORS, RADIUS, SHADOW } from "../theme";
 
+// PNGs are pre-required — no tintColor applied anywhere
+const ICONS = {
+  pig:       require("../assets/icons/pig.png"),
+  bell:      require("../assets/icons/bell.png"),
+  logout:    require("../assets/icons/logout.png"),
+  pregnant:  require("../assets/icons/pregnant.png"),
+  feeds:     require("../assets/icons/feeds.png"),
+  vaccine:   require("../assets/icons/vaccine.png"),
+  analytics: require("../assets/icons/analytics.png"),
+  breeding:  require("../assets/icons/breeding.png"),
+  forecast:  require("../assets/icons/forecast.png"),
+  farrowed:  require("../assets/icons/forrowed.png"),
+  inventory: require("../assets/icons/inventory.png"),
+  home:      require("../assets/icons/home.png"),
+};
+
 export default function DashboardScreen({ navigation }) {
-  const { logout } = useAuth();               // ← direct from context, always works
-  const [data,       setData]       = useState(null);
+  const { farmId, username, logout } = useAuth();
+  const [dash,       setDash]       = useState(null);
   const [weather,    setWeather]    = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [noFarm,     setNoFarm]     = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   async function load() {
+    if (!farmId) return;
     try {
-      const storedFarmId = await AsyncStorage.getItem("farmId");
-      if (!storedFarmId) { setNoFarm(true); return; }
-
-      const id = parseInt(storedFarmId);
-      const [dash, wx] = await Promise.all([
-        api.getDashboard(id),
-        api.getWeather(id),
+      const [d, wx, notifs] = await Promise.all([
+        api.getDashboard(farmId),
+        api.getWeather(farmId),
+        api.getNotifications(),
       ]);
-      setData(dash);
+      setDash(d);
       setWeather(wx);
-      setNoFarm(false);
+      const notifList = notifs?.results || notifs || [];
+      setUnreadCount(notifList.filter(n => !n.is_read).length);
     } catch (e) {
-      console.error("Dashboard load error:", e);
+      console.error("Dashboard load:", e.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }
 
-  useFocusEffect(useCallback(() => { load(); }, []));
+  useFocusEffect(useCallback(() => { load(); }, [farmId]));
 
   function handleLogout() {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout", style: "destructive",
-          onPress: () => logout(), // context clears token → RootNavigator shows Login
-        },
-      ]
-    );
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Logout", style: "destructive", onPress: () => logout() },
+    ]);
   }
 
   const hour     = new Date().getHours();
@@ -63,264 +70,618 @@ export default function DashboardScreen({ navigation }) {
     </View>
   );
 
-  const HeaderBar = () => (
-    <View style={s.headerTop}>
-      <View>
-        <Text style={s.appName}>Piglytics</Text>
-        <Text style={s.appTagline}>Smart Farming, Happy Herd</Text>
-      </View>
-      <View style={{ flexDirection: "row", gap: 8 }}>
-        <TouchableOpacity style={s.iconBtn}
-          onPress={() => navigation.navigate("Notifications")}>
-          <Text style={{ fontSize: 18 }}>🔔</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.iconBtn} onPress={handleLogout}>
-          <Text style={{ fontSize: 18 }}>🚪</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  if (noFarm || !data) {
-    return (
-      <View style={s.screen}>
-        <View style={s.header}><HeaderBar /></View>
-        <View style={s.welcomeWrap}>
-          <Text style={{ fontSize: 64, textAlign: "center" }}>🐷</Text>
-          <Text style={s.welcomeTitle}>Welcome to Piglytics!</Text>
-          <Text style={s.welcomeSub}>
-            Your farm dashboard is ready. Start by adding your first pig to begin monitoring.
-          </Text>
-          <TouchableOpacity style={s.welcomeBtn}
-            onPress={() => navigation.navigate("Pigs", { screen: "AddPig" })}>
-            <Text style={s.welcomeBtnText}>+ Add your first pig</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[s.welcomeBtn, { backgroundColor: COLORS.primaryLight, marginTop: 10 }]}
-            onPress={() => navigation.navigate("Inventory", { screen: "InventoryMain" })}>
-            <Text style={[s.welcomeBtnText, { color: COLORS.primary }]}>+ Add feed stock</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  const healthScore = dash?.farm_health_score ?? 100;
+  const healthColor = healthScore >= 80 ? COLORS.healthy
+                    : healthScore >= 60 ? COLORS.warning
+                    : COLORS.danger;
+  const healthGrade = healthScore >= 80 ? "Excellent"
+                    : healthScore >= 60 ? "Good"
+                    : healthScore >= 40 ? "Fair" : "Poor";
 
   return (
     <ScrollView
       style={s.screen}
       showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl refreshing={refreshing}
+        <RefreshControl
+          refreshing={refreshing}
           onRefresh={() => { setRefreshing(true); load(); }}
-          tintColor={COLORS.primary} />
+          tintColor={COLORS.primary}
+        />
       }
     >
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <View style={s.header}>
-        <HeaderBar />
+        <View style={s.headerTop}>
+          <View>
+            <Text style={s.appName}>Piglytics</Text>
+            <Text style={s.appTagline}>Smart Farming, Happy Herd</Text>
+          </View>
+
+          <View style={s.headerActions}>
+            {/* Bell with unread badge */}
+            <TouchableOpacity
+              style={s.headerBtn}
+              onPress={() => navigation.navigate("Notifications")}
+            >
+              <Image source={ICONS.bell} style={s.headerBtnIcon} />
+              {unreadCount > 0 && (
+                <View style={s.badge}>
+                  <Text style={s.badgeText}>
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {/* Logout button */}
+            <TouchableOpacity style={s.headerBtn} onPress={handleLogout}>
+              <Image source={ICONS.logout} style={s.headerBtnIcon} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Greeting card */}
         <View style={s.greetingCard}>
           <View>
-            <Text style={s.greetingTitle}>{greeting},{"\n"}Farmer! 🌿</Text>
-            <Text style={s.greetingSub}>Here's what's happening{"\n"}on your farm today.</Text>
+            <Text style={s.greetingTitle}>{greeting},{"\n"}{username || "Farmer"}!</Text>
+            <Text style={s.greetingSubtitle}>
+              Here's what's happening{"\n"}on your farm today.
+            </Text>
           </View>
-          <Text style={{ fontSize: 64 }}>🐷</Text>
+          <Image source={ICONS.pig} style={s.greetingPig} />
         </View>
       </View>
 
-      {/* Metric cards */}
-      <View style={s.metricsGrid}>
-        <MetricCard icon="🐷" label="Total Pigs"    value={data?.total_pigs ?? 0}
-          sub="Active on farm" color={COLORS.primary} bg={COLORS.primaryLight} />
-        <MetricCard icon="📦" label="Low Stocks"
-          value={(data?.low_feed_items || 0) + (data?.low_medicine_items || 0)}
-          sub="Items need restock" color={COLORS.warning} bg={COLORS.warningBg} />
-        <MetricCard icon="💉" label="Vaccination Due" value={data?.vaccinations_due ?? 0}
-          sub="This week" color={COLORS.purple} bg={COLORS.purpleBg} />
-        <MetricCard icon="❤️" label="Health Alerts"
-          value={(data?.under_treatment || 0) + (data?.critical || 0)}
-          sub="Need attention" color={COLORS.danger} bg={COLORS.dangerBg} />
-      </View>
-
-      {/* Weather alert */}
-      {weather && (weather.alert_count || 0) > 0 && (
-        <View style={s.weatherAlert}>
-          <Text style={{ fontSize: 22 }}>🌧️</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={s.weatherTitle}>{weather.alerts?.[0]?.title || "Weather Alert"}</Text>
-            <Text style={s.weatherMsg}>{weather.alerts?.[0]?.message || ""}</Text>
-          </View>
-          {weather.temperature_c != null && (
-            <Text style={s.weatherTemp}>{weather.temperature_c}°C</Text>
-          )}
-        </View>
-      )}
-
-      {/* Farm overview */}
+      {/* ── SECTION 1: STATUS ────────────────────────────────────────────── */}
       <View style={s.section}>
-        <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Farm Overview</Text>
-          <Text style={s.sectionSub}>This Week</Text>
-        </View>
-        <View style={s.overviewCard}>
-          {[
-            { label: "Total",    value: data?.total_pigs ?? 0,    color: COLORS.primary },
-            { label: "Pregnant", value: data?.pregnant_sows ?? 0, color: COLORS.pink    },
-            { label: "Healthy",  value: data?.healthy ?? 0,       color: COLORS.healthy },
-            { label: "Alerts",   value: (data?.under_treatment || 0) + (data?.critical || 0), color: COLORS.danger },
-          ].map((item, i) => (
-            <View key={i} style={s.overviewItem}>
-              <Text style={[s.overviewVal, { color: item.color }]}>{item.value}</Text>
-              <Text style={s.overviewLabel}>{item.label}</Text>
+        <Text style={s.sectionTitle}>Farm Status</Text>
+
+        {/* Health score card */}
+        <View style={[s.healthScoreCard, { borderLeftColor: healthColor }]}>
+          <View>
+            <Text style={s.healthScoreLabel}>Farm Health Score</Text>
+            <Text style={[s.healthScoreValue, { color: healthColor }]}>{healthScore}%</Text>
+            <Text style={[s.healthGrade, { color: healthColor }]}>{healthGrade}</Text>
+          </View>
+          <View style={s.healthScoreRight}>
+            <View style={s.progressBg}>
+              <View style={[s.progressFill, {
+                width: `${Math.min(healthScore, 100)}%`,
+                backgroundColor: healthColor,
+              }]} />
             </View>
-          ))}
+            <Text style={s.healthScoreSub}>
+              {dash?.healthy ?? 0} healthy of {dash?.total_pigs ?? 0} pigs
+            </Text>
+          </View>
+        </View>
+
+        {/* KPI grid — icons displayed at natural color, no tint */}
+        <View style={s.kpiGrid}>
+          <KpiCard
+            icon={ICONS.pig}
+            label="Total Pigs"
+            value={dash?.total_pigs ?? 0}
+            valueColor={COLORS.primary}
+            bg={COLORS.primaryLight}
+          />
+          <KpiCard
+            icon={ICONS.pregnant}
+            label="Pregnant"
+            value={dash?.pregnant_sows ?? 0}
+            valueColor={COLORS.blue}
+            bg={COLORS.blueBg}
+          />
+          <KpiCard
+            icon={ICONS.feeds}
+            label="Low Feed"
+            value={dash?.low_feed_items ?? 0}
+            valueColor={dash?.low_feed_items > 0 ? COLORS.danger : COLORS.healthy}
+            bg={dash?.low_feed_items > 0 ? COLORS.dangerBg : COLORS.healthyBg}
+          />
+          <KpiCard
+            icon={ICONS.vaccine}
+            label="Vax Due"
+            value={dash?.vaccinations_due ?? 0}
+            valueColor={COLORS.purple}
+            bg={COLORS.purpleBg}
+          />
         </View>
       </View>
 
-      {/* Quick actions */}
+      {/* ── SECTION 2: WEATHER & PIG COMFORT ──────────────────────────────── */}
+      {/* Always renders — shows loading state when weather hasn't loaded yet */}
       <View style={s.section}>
-        <Text style={s.sectionTitle}>Quick Actions</Text>
-        <View style={s.actionsRow}>
-          <ActionCard icon="🐷" label="Add Pig"   color={COLORS.primary}
-            onPress={() => navigation.navigate("Pigs", { screen: "AddPig" })} />
-          <ActionCard icon="⚖️" label="Log Weight" color={COLORS.blue}
-            onPress={() => navigation.navigate("Pigs", { screen: "PigList" })} />
-          <ActionCard icon="📦" label="Inventory"  color={COLORS.amber}
-            onPress={() => navigation.navigate("Inventory", { screen: "InventoryMain" })} />
-          <ActionCard icon="🔔" label="Alerts"     color={COLORS.danger}
-            onPress={() => navigation.navigate("Notifications")} />
-        </View>
+        <Text style={s.sectionTitle}>Weather & Environment</Text>
+        {weather ? (
+          weather.temperature_c != null ? (
+            <WeatherComfortCard weather={weather} location={dash?.farm_location || "Concepcion, Tarlac"} />
+          ) : (
+            <View style={{ backgroundColor: COLORS.white, borderRadius: RADIUS.xl, padding: 20, alignItems: "center", ...SHADOW.sm }}>
+              <Text style={{ fontSize: 13, color: COLORS.textMuted }}>Weather data unavailable — check internet connection</Text>
+            </View>
+          )
+        ) : (
+          <View style={{ backgroundColor: COLORS.white, borderRadius: RADIUS.xl, padding: 20, alignItems: "center", ...SHADOW.sm }}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={{ fontSize: 12, color: COLORS.textMuted, marginTop: 6 }}>Loading weather...</Text>
+          </View>
+        )}
       </View>
 
-      {/* Recent activity */}
-      <View style={[s.section, { marginBottom: 100 }]}>
-        <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Recent Activity</Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Notifications")}>
-            <Text style={s.viewAll}>View all →</Text>
+      {/* ── SECTION 2: ANALYTICS ─────────────────────────────────────────── */}
+      <View style={s.section}>
+        <View style={s.sectionHeaderRow}>
+          <Text style={s.sectionTitle}>Analytics</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("Analytics")}>
+            <Text style={s.viewAllLink}>View all</Text>
           </TouchableOpacity>
         </View>
 
-        {(data?.upcoming_farrowing || 0) > 0 && (
-          <ActivityRow icon="🌸" iconBg={COLORS.pinkBg}
-            title="Farrowing soon"
-            sub={`${data.upcoming_farrowing} sow(s) due within 7 days`}
-            time="Today"
-            onPress={() => navigation.navigate("Breeding", { screen: "BreedingMain" })} />
+        <View style={s.analyticsRow}>
+          <AnalyticsCard
+            icon={ICONS.analytics}
+            label="Avg Daily Gain"
+            value={dash?.analytics?.avg_adg ? `${dash.analytics.avg_adg} kg/d` : "—"}
+            target="Target: 0.65 kg/d"
+            borderColor={COLORS.primary}
+          />
+          <AnalyticsCard
+            icon={ICONS.breeding}
+            label="Avg Litter Size"
+            value={dash?.analytics?.avg_litter_size || "—"}
+            target={`Litters this month: ${dash?.analytics?.litters_this_month ?? 0}`}
+            borderColor={COLORS.pink}
+          />
+          <AnalyticsCard
+            icon={ICONS.feeds}
+            label="Feed This Week"
+            value={dash?.analytics?.feed_this_week_kg ? `${dash.analytics.feed_this_week_kg} kg` : "—"}
+            target={
+              dash?.analytics?.critical_feed_days != null
+                ? `Lowest: ${dash.analytics.critical_feed_days}d left`
+                : "Stock OK"
+            }
+            borderColor={COLORS.amber}
+          />
+        </View>
+      </View>
+
+      {/* ── SECTION 3: FORECAST ──────────────────────────────────────────── */}
+      <View style={s.section}>
+        <View style={s.sectionHeaderRow}>
+          <Text style={s.sectionTitle}>Forecast</Text>
+          <TouchableOpacity onPress={() => navigation.navigate("Forecast")}>
+            <Text style={s.viewAllLink}>View all</Text>
+          </TouchableOpacity>
+        </View>
+
+        {dash?.forecast?.next_farrowing_sow && (
+          <ForecastRow
+            icon={ICONS.farrowed}
+            title={`${dash.forecast.next_farrowing_sow} — Farrowing expected`}
+            sub={`${dash.forecast.next_farrowing_date}`}
+            onPress={() => navigation.navigate("Breeding")}
+          />
         )}
-        {(data?.vaccinations_due || 0) > 0 && (
-          <ActivityRow icon="💉" iconBg={COLORS.purpleBg}
-            title="Vaccination due"
-            sub={`${data.vaccinations_due} pig(s) need vaccination`}
-            time="This week"
-            onPress={() => navigation.navigate("Pigs", { screen: "PigList" })} />
+
+        {dash?.analytics?.critical_feed_days != null && dash.analytics.critical_feed_days < 7 && (
+          <ForecastRow
+            icon={ICONS.feeds}
+            title="Feed shortage approaching"
+            sub={`~${dash.analytics.critical_feed_days} days remaining`}
+            onPress={() => navigation.navigate("Inventory")}
+            urgent
+          />
         )}
-        {((data?.low_feed_items || 0) + (data?.low_medicine_items || 0)) > 0 && (
-          <ActivityRow icon="📦" iconBg={COLORS.amberBg}
-            title="Low stock alert"
-            sub={`${(data?.low_feed_items || 0) + (data?.low_medicine_items || 0)} item(s) running low`}
-            time="Now"
-            onPress={() => navigation.navigate("Inventory", { screen: "InventoryMain" })} />
+
+        {dash?.forecast?.next_vaccination_pig && (
+          <ForecastRow
+            icon={ICONS.vaccine}
+            title={`${dash.forecast.next_vaccination_pig} — Vaccination due`}
+            sub={`${dash.forecast.next_vaccination_name} on ${dash.forecast.next_vaccination_date}`}
+            onPress={() => navigation.navigate("Pigs")}
+          />
         )}
-        {!(data?.upcoming_farrowing) && !(data?.vaccinations_due) &&
-          !((data?.low_feed_items || 0) + (data?.low_medicine_items || 0)) && (
+
+        {!dash?.forecast?.next_farrowing_sow && !dash?.forecast?.next_vaccination_pig && (
           <View style={s.allGood}>
-            <Text style={{ fontSize: 32, marginBottom: 8 }}>✅</Text>
-            <Text style={s.allGoodText}>Everything looks good on the farm!</Text>
+            <Image source={ICONS.analytics} style={{ width: 24, height: 24, resizeMode: "contain" }} />
+            <Text style={s.allGoodText}>No upcoming events — all good!</Text>
           </View>
         )}
+      </View>
+
+      {/* ── QUICK ACTIONS ─────────────────────────────────────────────────── */}
+      <View style={[s.section, { marginBottom: 100 }]}>
+        <Text style={s.sectionTitle}>Quick Actions</Text>
+        <View style={s.actionsGrid}>
+          <ActionCard
+            icon={ICONS.pig}
+            label="Add Pig"
+            bg={COLORS.primaryLight}
+            onPress={() => navigation.navigate("Pigs", { screen: "AddPig" })}
+          />
+          <ActionCard
+            icon={ICONS.analytics}
+            label="Log Weight"
+            bg={COLORS.blueBg}
+            onPress={() => navigation.navigate("Pigs", { screen: "PigList" })}
+          />
+          <ActionCard
+            icon={ICONS.inventory}
+            label="Inventory"
+            bg={COLORS.amberBg}
+            onPress={() => navigation.navigate("Inventory")}
+          />
+          <ActionCard
+            icon={ICONS.analytics}
+            label="Analytics"
+            bg={COLORS.purpleBg}
+            onPress={() => navigation.navigate("Analytics")}
+          />
+        </View>
       </View>
     </ScrollView>
   );
 }
 
-function MetricCard({ icon, label, value, sub, color, bg }) {
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function KpiCard({ icon, label, value, valueColor, bg }) {
   return (
-    <View style={[s.metricCard, { backgroundColor: bg }]}>
-      <Text style={{ fontSize: 22, marginBottom: 6 }}>{icon}</Text>
-      <Text style={[s.metricValue, { color }]}>{value}</Text>
-      <Text style={s.metricLabel}>{label}</Text>
-      <Text style={s.metricSub}>{sub}</Text>
+    <View style={[s.kpiCard, { backgroundColor: bg }]}>
+      {/* Icon at natural size and color — no tint */}
+      <Image source={icon} style={{ width: 22, height: 22, resizeMode: "contain", marginBottom: 6 }} />
+      <Text style={[s.kpiValue, { color: valueColor }]}>{value}</Text>
+      <Text style={s.kpiLabel}>{label}</Text>
     </View>
   );
 }
 
-function ActionCard({ icon, label, color, onPress }) {
+function AnalyticsCard({ icon, label, value, target, borderColor }) {
+  return (
+    <View style={[s.analyticsCard, { borderTopColor: borderColor }]}>
+      <Image source={icon} style={{ width: 18, height: 18, resizeMode: "contain", marginBottom: 6 }} />
+      <Text style={s.analyticsValue}>{value}</Text>
+      <Text style={s.analyticsLabel}>{label}</Text>
+      <Text style={s.analyticsTarget}>{target}</Text>
+    </View>
+  );
+}
+
+function ActionCard({ icon, label, bg, onPress }) {
   return (
     <TouchableOpacity style={s.actionCard} onPress={onPress} activeOpacity={0.8}>
-      <View style={[s.actionIcon, { backgroundColor: color + "18" }]}>
-        <Text style={{ fontSize: 22 }}>{icon}</Text>
+      <View style={[s.actionIconWrap, { backgroundColor: bg }]}>
+        <Image source={icon} style={{ width: 22, height: 22, resizeMode: "contain" }} />
       </View>
       <Text style={s.actionLabel}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
-function ActivityRow({ icon, iconBg, title, sub, time, onPress }) {
+function ForecastRow({ icon, title, sub, onPress, urgent }) {
   return (
-    <TouchableOpacity style={s.activityRow} onPress={onPress} activeOpacity={0.8}>
-      <View style={[s.activityIcon, { backgroundColor: iconBg }]}>
-        <Text style={{ fontSize: 18 }}>{icon}</Text>
+    <TouchableOpacity
+      style={[s.forecastRow, urgent && { borderLeftWidth: 3, borderLeftColor: COLORS.danger }]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={[s.forecastIconWrap, { backgroundColor: urgent ? COLORS.dangerBg : COLORS.primaryLight }]}>
+        <Image source={icon} style={{ width: 18, height: 18, resizeMode: "contain" }} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={s.activityTitle}>{title}</Text>
-        <Text style={s.activitySub}>{sub}</Text>
+        <Text style={s.forecastTitle}>{title}</Text>
+        <Text style={s.forecastSub}>{sub}</Text>
       </View>
-      <Text style={s.activityTime}>{time}</Text>
+      <Image source={require("../assets/icons/forecast.png")} style={{ width: 14, height: 14, resizeMode: "contain", opacity: 0.4 }} />
     </TouchableOpacity>
   );
 }
 
+// ── WeatherComfortCard ────────────────────────────────────────────────────────
+// Redesigned: permanent top block always shows temperature, condition,
+// humidity, wind, and location. Pig comfort section always visible below.
+// Per-stage breakdown is expandable.
+
+const COMFORT_COLORS = {
+  comfortable:  COLORS.healthy,
+  mild_warning: COLORS.amber,
+  warning:      COLORS.warning,
+  high_risk:    COLORS.danger,
+  critical:     COLORS.danger,
+};
+const COMFORT_BG = {
+  comfortable:  COLORS.healthyBg,
+  mild_warning: COLORS.amberBg,
+  warning:      COLORS.warningBg,
+  high_risk:    COLORS.dangerBg,
+  critical:     COLORS.dangerBg,
+};
+const COMFORT_LABEL = {
+  comfortable:  "Comfortable",
+  mild_warning: "Mild Risk",
+  warning:      "Warning",
+  high_risk:    "High Risk",
+  critical:     "Critical",
+};
+// Risk level label used in the Environmental Risk Level row
+const RISK_LEVEL_LABEL = {
+  comfortable:  "Normal",
+  mild_warning: "Warning",
+  warning:      "Warning",
+  high_risk:    "High Risk",
+  critical:     "Critical",
+};
+
+function WeatherComfortCard({ weather, location }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const temp      = weather.temperature_c;
+  const humidity  = weather.humidity_percent;
+  const wind      = weather.wind_speed_kph;
+  const precip    = weather.precipitation_mm;
+  const condition = weather.condition     || "Partly Cloudy";
+  const comfort   = weather.pig_comfort;
+
+  const status    = comfort?.overall_status || "comfortable";
+  const ringColor = COMFORT_COLORS[status]  || COLORS.blue;
+  const chipBg    = COMFORT_BG[status]      || COLORS.blueBg;
+  const effTemp   = comfort?.effective_temp;
+  const showEff   = effTemp != null && effTemp > temp;
+
+  return (
+    <View style={wc.outerCard}>
+      {/* ── TOP BLOCK: Current weather — always visible ───────────────── */}
+      <View style={[wc.weatherTopBlock, { borderBottomColor: COLORS.border }]}>
+
+        {/* Left: big temperature */}
+        <View style={wc.tempBlock}>
+          <Text style={[wc.bigTemp, { color: ringColor }]}>{temp}°C</Text>
+          <Text style={wc.conditionLabel}>{condition}</Text>
+          {location ? <Text style={wc.locationLabel}>{location}</Text> : null}
+        </View>
+
+        {/* Right: humidity + wind + precip */}
+        <View style={wc.weatherMetaBlock}>
+          <WeatherMetaRow icon={ICONS.forecast} label="Humidity"  value={`${humidity}%`} />
+          {wind  != null && <WeatherMetaRow icon={ICONS.forecast} label="Wind"      value={`${wind} km/h`} />}
+          {precip > 0    && <WeatherMetaRow icon={ICONS.forecast} label="Rain"      value={`${precip} mm`} />}
+          {showEff && (
+            <WeatherMetaRow icon={ICONS.bell} label="Feels like" value={`${effTemp}°C`}
+              note="humidity-adjusted" noteColor={COLORS.warning} />
+          )}
+        </View>
+      </View>
+
+      {/* ── PIG COMFORT STATUS — always visible ──────────────────────── */}
+      <View style={wc.comfortSection}>
+        {/* Pig Comfort Status row */}
+        <View style={wc.comfortRow}>
+          <View style={wc.comfortRowLeft}>
+            <Image source={ICONS.pig} style={{ width: 16, height: 16, resizeMode: "contain" }} />
+            <Text style={wc.comfortRowLabel}>Pig Comfort Status</Text>
+          </View>
+          <View style={[wc.statusChip, { backgroundColor: chipBg }]}>
+            <Text style={[wc.statusChipText, { color: ringColor }]}>
+              {COMFORT_LABEL[status] || "Comfortable"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Environmental Risk Level row */}
+        <View style={wc.comfortRow}>
+          <View style={wc.comfortRowLeft}>
+            <Image source={ICONS.analytics} style={{ width: 16, height: 16, resizeMode: "contain" }} />
+            <Text style={wc.comfortRowLabel}>Environmental Risk</Text>
+          </View>
+          <View style={[wc.riskChip, { backgroundColor: chipBg, borderColor: ringColor }]}>
+            <View style={[wc.riskDot, { backgroundColor: ringColor }]} />
+            <Text style={[wc.riskChipText, { color: ringColor }]}>
+              {RISK_LEVEL_LABEL[status] || "Normal"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Humidity amplification note (when relevant) */}
+        {comfort?.humidity_note && (
+          <View style={wc.humidityNote}>
+            <Text style={wc.humidityText}>{comfort.humidity_note}</Text>
+          </View>
+        )}
+
+        {/* Pig Impact Summary — always visible */}
+        <View style={[wc.impactBox, { borderLeftColor: ringColor, backgroundColor: chipBg }]}>
+          <Text style={wc.impactLabel}>Pig Impact</Text>
+          <Text style={[wc.impactText, { color: ringColor }]}>
+            {comfort?.pig_comfort_summary
+              || (weather.alert_count > 0 ? weather.alerts[0].message : "Conditions are within acceptable range for your pigs.")}
+          </Text>
+        </View>
+
+        {/* Expandable per-stage breakdown */}
+        {comfort?.stage_risks?.length > 0 && (
+          <>
+            <TouchableOpacity style={wc.expandBtn} onPress={() => setExpanded(!expanded)}>
+              <Text style={wc.expandBtnText}>
+                {expanded
+                  ? "Hide per-stage breakdown"
+                  : `Show per-stage breakdown (${comfort.stage_risks.length} stages)`}
+              </Text>
+            </TouchableOpacity>
+
+            {expanded && comfort.stage_risks.map((sr, i) => {
+              const srColor = COMFORT_COLORS[sr.status] || COLORS.textMuted;
+              const srBg    = COMFORT_BG[sr.status]    || COLORS.screenBg;
+              return (
+                <View key={i} style={[wc.stageRow, { borderLeftColor: srColor }]}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <Text style={wc.stageName}>{sr.label}</Text>
+                      <View style={[wc.stageChip, { backgroundColor: srBg }]}>
+                        <Text style={[wc.stageChipText, { color: srColor }]}>
+                          {COMFORT_LABEL[sr.status] || "Comfortable"}
+                        </Text>
+                      </View>
+                      {sr.pig_count != null && (
+                        <Text style={wc.stageCount}>{sr.pig_count} pigs</Text>
+                      )}
+                    </View>
+                    <Text style={wc.stageTnz}>
+                      Comfort zone: {sr.tnz_low}–{sr.tnz_high}°C
+                    </Text>
+                    {sr.status !== "comfortable" && (
+                      <Text style={[wc.stageRec, { color: srColor }]}>
+                        {sr.recommendation}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </>
+        )}
+
+        {/* Fallback: show all generic alerts when no pig_comfort data */}
+        {!comfort && weather.alert_count > 0 && weather.alerts.map((a, i) => (
+          <View key={i} style={[wc.stageRow, { borderLeftColor: COLORS.warning }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[wc.stageName, { color: COLORS.warning }]}>{a.title}</Text>
+              <Text style={wc.stageRec}>{a.message}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function WeatherMetaRow({ icon, label, value, note, noteColor }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginBottom: 5 }}>
+      <Image source={icon} style={{ width: 12, height: 12, resizeMode: "contain", opacity: 0.6 }} />
+      <Text style={wc.metaLabel}>{label}:</Text>
+      <Text style={wc.metaValue}>{value}</Text>
+      {note && <Text style={[wc.metaNote, noteColor && { color: noteColor }]}>{note}</Text>}
+    </View>
+  );
+}
+
+const wc = StyleSheet.create({
+  outerCard:      { marginHorizontal: 16, marginTop: 12, backgroundColor: COLORS.white, borderRadius: RADIUS.xl, overflow: "hidden", ...SHADOW.sm },
+
+  // Top weather block
+  weatherTopBlock:{ flexDirection: "row", padding: 16, borderBottomWidth: 1, gap: 12 },
+  tempBlock:      { flex: 1, justifyContent: "center" },
+  bigTemp:        { fontSize: 42, fontWeight: "800", lineHeight: 46 },
+  conditionLabel: { fontSize: 13, color: COLORS.textSecondary, fontWeight: "600", marginTop: 2 },
+  locationLabel:  { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  weatherMetaBlock:{ flex: 1, justifyContent: "center" },
+  metaLabel:      { fontSize: 11, color: COLORS.textMuted, fontWeight: "500" },
+  metaValue:      { fontSize: 12, color: COLORS.textPrimary, fontWeight: "700" },
+  metaNote:       { fontSize: 10, color: COLORS.warning, fontStyle: "italic" },
+
+  // Comfort section
+  comfortSection: { padding: 14, gap: 8 },
+  comfortRow:     { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  comfortRowLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
+  comfortRowLabel:{ fontSize: 13, color: COLORS.textPrimary, fontWeight: "600" },
+  statusChip:     { paddingHorizontal: 12, paddingVertical: 4, borderRadius: RADIUS.full },
+  statusChipText: { fontSize: 12, fontWeight: "700" },
+  riskChip:       { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: RADIUS.full, borderWidth: 1 },
+  riskDot:        { width: 8, height: 8, borderRadius: 4 },
+  riskChipText:   { fontSize: 12, fontWeight: "700" },
+
+  humidityNote:   { backgroundColor: COLORS.warningBg, borderRadius: RADIUS.md, padding: 8 },
+  humidityText:   { fontSize: 11, color: COLORS.warning, lineHeight: 16 },
+
+  impactBox:      { borderLeftWidth: 3, borderRadius: RADIUS.md, padding: 10 },
+  impactLabel:    { fontSize: 10, fontWeight: "700", color: COLORS.textMuted, marginBottom: 3, textTransform: "uppercase", letterSpacing: 0.5 },
+  impactText:     { fontSize: 12, lineHeight: 18, fontWeight: "500" },
+
+  expandBtn:      { paddingVertical: 8, alignItems: "center" },
+  expandBtnText:  { fontSize: 12, color: COLORS.primary, fontWeight: "600" },
+
+  stageRow:       { borderLeftWidth: 2, paddingLeft: 10, paddingVertical: 8 },
+  stageName:      { fontSize: 13, fontWeight: "700", color: COLORS.textPrimary },
+  stageChip:      { paddingHorizontal: 7, paddingVertical: 2, borderRadius: RADIUS.full },
+  stageChipText:  { fontSize: 10, fontWeight: "700" },
+  stageCount:     { fontSize: 10, color: COLORS.textMuted },
+  stageTnz:       { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
+  stageRec:       { fontSize: 11, lineHeight: 16, marginTop: 4, fontStyle: "italic", color: COLORS.textSecondary },
+});
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: COLORS.screenBg },
-  center: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: COLORS.screenBg },
+  screen:    { flex: 1, backgroundColor: COLORS.screenBg },
+  center:    { flex: 1, justifyContent: "center", alignItems: "center" },
 
-  header:      { backgroundColor: COLORS.primary, paddingTop: 52, paddingHorizontal: 20, paddingBottom: 24 },
-  headerTop:   { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  appName:     { fontSize: 22, fontWeight: "800", color: COLORS.white, letterSpacing: -0.5 },
-  appTagline:  { fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 1 },
-  iconBtn:     { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center" },
-  greetingCard:{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", backgroundColor: "rgba(255,255,255,0.15)", borderRadius: RADIUS.xl, padding: 18 },
-  greetingTitle:{ fontSize: 22, fontWeight: "800", color: COLORS.white, lineHeight: 28 },
-  greetingSub: { fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 6, lineHeight: 18 },
+  // Header
+  header:       { backgroundColor: COLORS.primary, paddingTop: 52, paddingHorizontal: 20, paddingBottom: 24 },
+  headerTop:    { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  appName:      { fontSize: 22, fontWeight: "800", color: COLORS.white, letterSpacing: -0.5 },
+  appTagline:   { fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 1 },
 
-  welcomeWrap:  { flex: 1, justifyContent: "center", alignItems: "center", padding: 32 },
-  welcomeTitle: { fontSize: 24, fontWeight: "800", color: COLORS.textPrimary, marginTop: 16, marginBottom: 10, textAlign: "center" },
-  welcomeSub:   { fontSize: 14, color: COLORS.textMuted, textAlign: "center", lineHeight: 21, marginBottom: 24 },
-  welcomeBtn:   { backgroundColor: COLORS.primary, borderRadius: RADIUS.xl, padding: 14, alignItems: "center", width: "100%" },
-  welcomeBtnText: { color: COLORS.white, fontWeight: "700", fontSize: 14 },
+  headerActions:{ flexDirection: "row", gap: 8 },
+  headerBtn:    { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", justifyContent: "center", alignItems: "center" },
+  headerBtnIcon:{ width: 20, height: 20, resizeMode: "contain" },
 
-  metricsGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 16, paddingTop: 20, gap: 12 },
-  metricCard:  { width: "47%", borderRadius: RADIUS.lg, padding: 14, ...SHADOW.sm },
-  metricValue: { fontSize: 26, fontWeight: "800" },
-  metricLabel: { fontSize: 12, fontWeight: "600", color: COLORS.textPrimary, marginTop: 2 },
-  metricSub:   { fontSize: 10, color: COLORS.textMuted, marginTop: 2 },
+  // Notification badge
+  badge:     { position: "absolute", top: 4, right: 4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: COLORS.danger, justifyContent: "center", alignItems: "center", paddingHorizontal: 3 },
+  badgeText: { fontSize: 9, color: COLORS.white, fontWeight: "800" },
 
-  weatherAlert: { marginHorizontal: 16, marginTop: 12, backgroundColor: COLORS.blueBg, borderRadius: RADIUS.lg, padding: 14, flexDirection: "row", alignItems: "center", gap: 10, borderLeftWidth: 3, borderLeftColor: COLORS.blue },
-  weatherTitle: { fontSize: 13, fontWeight: "700", color: COLORS.blue },
-  weatherMsg:   { fontSize: 11, color: "#1E40AF", marginTop: 2 },
-  weatherTemp:  { fontSize: 18, fontWeight: "700", color: COLORS.blue },
+  greetingCard:     { backgroundColor: "rgba(255,255,255,0.15)", borderRadius: RADIUS.xl, padding: 18, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  greetingTitle:    { fontSize: 22, fontWeight: "800", color: COLORS.white, lineHeight: 28 },
+  greetingSubtitle: { fontSize: 12, color: "rgba(255,255,255,0.75)", marginTop: 6, lineHeight: 18 },
+  greetingPig:      { width: 72, height: 72, resizeMode: "contain", opacity: 0.5 },
 
-  section:       { marginHorizontal: 16, marginTop: 20 },
-  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  sectionTitle:  { fontSize: 16, fontWeight: "700", color: COLORS.textPrimary },
-  sectionSub:    { fontSize: 12, color: COLORS.textMuted },
-  viewAll:       { fontSize: 12, color: COLORS.primary, fontWeight: "600" },
+  // Section
+  section:          { marginHorizontal: 16, marginTop: 20 },
+  sectionTitle:     { fontSize: 16, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 12 },
+  sectionHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  viewAllLink:      { fontSize: 12, color: COLORS.primary, fontWeight: "600" },
 
-  overviewCard:  { backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: 16, flexDirection: "row", justifyContent: "space-around", ...SHADOW.sm },
-  overviewItem:  { alignItems: "center" },
-  overviewVal:   { fontSize: 22, fontWeight: "800" },
-  overviewLabel: { fontSize: 11, color: COLORS.textMuted, marginTop: 3 },
+  // Health score
+  healthScoreCard:  { backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: 16, borderLeftWidth: 4, marginBottom: 12, flexDirection: "row", alignItems: "center", gap: 16, ...SHADOW.sm },
+  healthScoreLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: "600" },
+  healthScoreValue: { fontSize: 32, fontWeight: "800" },
+  healthGrade:      { fontSize: 12, fontWeight: "700" },
+  healthScoreRight: { flex: 1 },
+  progressBg:       { height: 8, backgroundColor: COLORS.borderLight, borderRadius: 4, overflow: "hidden", marginBottom: 6 },
+  progressFill:     { height: 8, borderRadius: 4 },
+  healthScoreSub:   { fontSize: 11, color: COLORS.textMuted },
 
-  actionsRow:   { flexDirection: "row", gap: 10 },
-  actionCard:   { flex: 1, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: 14, alignItems: "center", ...SHADOW.sm },
-  actionIcon:   { width: 44, height: 44, borderRadius: 22, justifyContent: "center", alignItems: "center", marginBottom: 8 },
-  actionLabel:  { fontSize: 11, fontWeight: "600", color: COLORS.textPrimary, textAlign: "center" },
+  // KPI
+  kpiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  kpiCard: { width: "47%", borderRadius: RADIUS.lg, padding: 14, ...SHADOW.sm },
+  kpiValue:{ fontSize: 26, fontWeight: "800", marginTop: 2 },
+  kpiLabel:{ fontSize: 11, color: COLORS.textPrimary, fontWeight: "600", marginTop: 2 },
 
-  activityRow:  { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: 12, marginBottom: 8, ...SHADOW.sm },
-  activityIcon: { width: 42, height: 42, borderRadius: 21, justifyContent: "center", alignItems: "center" },
-  activityTitle:{ fontSize: 13, fontWeight: "700", color: COLORS.textPrimary },
-  activitySub:  { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-  activityTime: { fontSize: 11, color: COLORS.textMuted },
+  // Weather
+  // weather styles moved to WeatherComfortCard (wc StyleSheet)
 
-  allGood:     { backgroundColor: COLORS.healthyBg, borderRadius: RADIUS.lg, padding: 20, alignItems: "center" },
-  allGoodText: { fontSize: 13, color: "#2E7D32", fontWeight: "600", textAlign: "center" },
+  // Analytics
+  analyticsRow:   { flexDirection: "row", gap: 10 },
+  analyticsCard:  { flex: 1, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: 12, borderTopWidth: 3, alignItems: "center", ...SHADOW.sm },
+  analyticsValue: { fontSize: 16, fontWeight: "800", color: COLORS.textPrimary, textAlign: "center" },
+  analyticsLabel: { fontSize: 10, color: COLORS.textPrimary, fontWeight: "600", marginTop: 2, textAlign: "center" },
+  analyticsTarget:{ fontSize: 9, color: COLORS.textMuted, marginTop: 2, textAlign: "center" },
+
+  // Forecast
+  forecastRow:     { backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: 12, flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8, ...SHADOW.sm },
+  forecastIconWrap:{ width: 38, height: 38, borderRadius: 19, justifyContent: "center", alignItems: "center" },
+  forecastTitle:   { fontSize: 13, fontWeight: "700", color: COLORS.textPrimary },
+  forecastSub:     { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+
+  allGood:     { backgroundColor: COLORS.healthyBg, borderRadius: RADIUS.lg, padding: 20, flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 10 },
+  allGoodText: { fontSize: 13, color: COLORS.healthy, fontWeight: "600" },
+
+  // Actions
+  actionsGrid:    { flexDirection: "row", gap: 10 },
+  actionCard:     { flex: 1, backgroundColor: COLORS.white, borderRadius: RADIUS.lg, padding: 14, alignItems: "center", ...SHADOW.sm },
+  actionIconWrap: { width: 44, height: 44, borderRadius: 22, justifyContent: "center", alignItems: "center", marginBottom: 8 },
+  actionLabel:    { fontSize: 10, fontWeight: "600", color: COLORS.textPrimary, textAlign: "center" },
 });
